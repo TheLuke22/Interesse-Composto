@@ -5,3 +5,4 @@ plotly
 yfinance
 textblob
 lxml
+request
