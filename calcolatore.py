@@ -363,6 +363,8 @@ elif page_choice == "📊 Stock Tracker":
                     st.subheader("🧩 Revenue by Segment (Business Segments)")
                     
                     segment_data = fetch_segments(a_ticker)
+
+                    st.warning(segment_data)
                     
                     if segment_data and isinstance(segment_data, list) and len(segment_data) > 0:
                         # Estraiamo l'anno più recente
