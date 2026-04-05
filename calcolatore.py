@@ -1,3 +1,4 @@
+import requests
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -54,6 +55,24 @@ def fetch_financials(ticker):
 def fetch_news(ticker):
     stock = yf.Ticker(ticker)
     return stock.news
+
+@st.cache_data(ttl=86400)
+def fetch_segments(ticker):
+    """Scarica i ricavi per segmento da FMP."""
+    if "FMP_KEY" not in st.secrets:
+        return None
+    
+    api_key = st.secrets["FMP_KEY"]
+    # Endpoint per i segmenti di prodotto
+    url = f"https://financialmodelingprep.com/api/v3/revenue-product-segmentation?symbol={ticker}&apikey={api_key}"
+    
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            return response.json()
+        return None
+    except:
+        return None
 
 # --- SIDEBAR MENU ---
 st.sidebar.title("🧭 Navigation")
@@ -339,7 +358,42 @@ elif page_choice == "📊 Stock Tracker":
                         st.dataframe(earn_data, use_container_width=True)
                     else:
                         st.info("Upcoming earnings dates not available.")
+
+                    st.divider()
+                    st.subheader("🧩 Revenue by Segment (Business Segments)")
+                    
+                    segment_data = fetch_segments(a_ticker)
+                    
+                    if segment_data and isinstance(segment_data, list) and len(segment_data) > 0:
+                        # Estraiamo l'anno più recente
+                        latest_data = segment_data[0]
+                        date_str = latest_data.pop("date", "Latest")
                         
+                        # Rimuoviamo eventuali chiavi vuote o non numeriche
+                        clean_data = {k: v for k, v in latest_data.items() if isinstance(v, (int, float)) and v > 0}
+                        
+                        if clean_data:
+                            # Prepariamo i dati per il grafico a torta
+                            df_seg = pd.DataFrame(list(clean_data.items()), columns=['Segment', 'Revenue'])
+                            
+                            col_s1, col_s2 = st.columns([1, 1])
+                            with col_s1:
+                                fig_pie = px.pie(df_seg, values='Revenue', names='Segment', hole=0.4, 
+                                                 title=f"Segment Breakdown ({date_str[:4]})",
+                                                 color_discrete_sequence=px.colors.qualitative.Pastel)
+                                fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+                                fig_pie.update_layout(showlegend=False, margin=dict(t=30, b=0, l=0, r=0))
+                                st.plotly_chart(fig_pie, use_container_width=True)
+                            
+                            with col_s2:
+                                st.write("**Detailed Revenue (Latest Year)**")
+                                # Formattiamo i numeri per renderli leggibili
+                                df_seg['Revenue'] = df_seg['Revenue'].apply(format_large_numbers)
+                                st.dataframe(df_seg, use_container_width=True, hide_index=True)
+                        else:
+                            st.info("I dati sui segmenti non contengono valori numerici validi per questo ticker.")
+                    else:
+                        st.info("Dati sui segmenti di business non disponibili per questo ticker o limite API raggiunto.")
                     st.divider()
                     
                     st.subheader("Financial Highlights")
