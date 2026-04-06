@@ -479,5 +479,4 @@ elif page_choice == "📰 Financial News":
                             st.subheader(title)
                             st.caption(f"✍️ **Source:** {publisher} | 🕒 **Published:** {pub_date} | 🧠 **AI Sentiment:** {sentiment_label}")
                             st.markdown(f"[🔗 Read the full article on {publisher}]({link})")
-                            st.divider() Read the full article on {publisher}]({link})")
                             st.divider()
