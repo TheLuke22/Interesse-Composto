@@ -58,9 +58,20 @@ def fetch_news(ticker):
 
 @st.cache_data(ttl=86400)
 def fetch_segments(ticker):
-    """Scarica i ricavi per segmento da FMP."""
+    """Scarica i ricavi per segmento da FMP senza nascondere gli errori."""
     if "FMP_KEY" not in st.secrets:
-        return None
+        return "ERRORE: FMP_KEY non trovata nei Secrets di Streamlit!"
+    
+    api_key = st.secrets["FMP_KEY"]
+    url = f"https://financialmodelingprep.com/api/v3/revenue-product-segmentation?symbol={ticker}&apikey={api_key}"
+    
+    response = requests.get(url)
+    
+    # Restituiamo il vero testo della risposta, qualunque esso sia!
+    try:
+        return response.json()
+    except:
+        return response.text
     
     api_key = st.secrets["FMP_KEY"]
     # Endpoint per i segmenti di prodotto
