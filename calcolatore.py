@@ -7,6 +7,8 @@ from plotly.subplots import make_subplots
 import yfinance as yf
 from datetime import datetime, timedelta
 from textblob import TextBlob
+import requests
+import json
 
 # --- Initial Configuration ---
 st.set_page_config(page_title="Pro Financial Dashboard", layout="wide")
@@ -25,12 +27,43 @@ def format_perc(value):
     if value is None or str(value) == 'nan' or value == 'N/A': return "N/A"
     return f"{value * 100:.2f}%"
 
+# --- Utility Functions ---
+
 def get_sentiment(text):
-    """Analizza il sentiment del testo e restituisce un'etichetta visuale."""
-    score = TextBlob(text).sentiment.polarity
-    if score > 0.1: return "🟢 Positive"
-    elif score < -0.1: return "🔴 Negative"
-    else: return "⚪ Neutral"
+    """Analizza il sentiment del testo usando Gemma in locale tramite Ollama."""
+    prompt = f"""Agisci come un analista finanziario esperto. 
+    Leggi il seguente titolo di una notizia e dimmi se per il prezzo delle azioni dell'azienda è una notizia POSITIVA, NEGATIVA o NEUTRA. 
+    Rispondi SOLO con una di queste tre parole: Positive, Negative, Neutral.
+    
+    Titolo notizia: "{text}"
+    """
+    
+    try:
+        response = requests.post(
+            "http://localhost:11434/api/generate", 
+            json={
+                "model": "gemma:2b", 
+                "prompt": prompt, 
+                "stream": False
+            },
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            ai_reply = response.json()['response'].strip().lower()
+            if "positive" in ai_reply: 
+                return "🟢 Positive"
+            elif "negative" in ai_reply: 
+                return "🔴 Negative"
+            else: 
+                return "⚪ Neutral"
+        else:
+            return "⚪ Neutral (Errore API)"
+    except Exception:
+        score = TextBlob(text).sentiment.polarity
+        if score > 0.1: return "🟢 Positive (TextBlob Fallback)"
+        elif score < -0.1: return "🔴 Negative (TextBlob Fallback)"
+        else: return "⚪ Neutral (TextBlob Fallback)"
 
 # --- CACHING FUNCTIONS (Per velocità e sicurezza API) ---
 @st.cache_data(ttl=3600)
@@ -55,17 +88,6 @@ def fetch_news(ticker):
     stock = yf.Ticker(ticker)
     return stock.news
     
-    api_key = st.secrets["FMP_KEY"]
-    # Endpoint per i segmenti di prodotto
-    url = f"https://financialmodelingprep.com/api/v3/revenue-product-segmentation?symbol={ticker}&apikey={api_key}"
-    
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            return response.json()
-        return None
-    except:
-        return None
 
 # --- SIDEBAR MENU ---
 st.sidebar.title("🧭 Navigation")
@@ -457,6 +479,5 @@ elif page_choice == "📰 Financial News":
                             st.subheader(title)
                             st.caption(f"✍️ **Source:** {publisher} | 🕒 **Published:** {pub_date} | 🧠 **AI Sentiment:** {sentiment_label}")
                             st.markdown(f"[🔗 Read the full article on {publisher}]({link})")
+                            st.divider() Read the full article on {publisher}]({link})")
                             st.divider()
-            else:
-                st.warning(f"No recent news found for ticker {ticker_news}.")
