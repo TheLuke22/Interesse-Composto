@@ -4,3 +4,5 @@ numpy
 plotly
 yfinance
 textblob
+lxml
+requests

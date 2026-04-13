@@ -10,6 +10,8 @@ import requests
 from scipy.optimize import minimize
 from fpdf import FPDF
 import io
+from textblob import TextBlob
+import json
 
 # --- CONFIGURAZIONE ISTITUZIONALE ---
 st.set_page_config(page_title="PRO Quant Dashboard", layout="wide", initial_sidebar_state="expanded")
@@ -89,41 +91,40 @@ def calc_risk_metrics(returns, rf_rate=0.02):
 
 # --- FUNZIONI AI OLLAMA (LOCALE) ---
 def get_sentiment(text):
-    """
-    Analizza il sentiment passando il testo al modello Gemma tramite Ollama in locale.
-    """
-    url = "http://localhost:11434/api/generate"
+    """Analizza il sentiment del testo usando Gemma in locale tramite Ollama."""
+    prompt = f"""Agisci come un analista finanziario esperto. 
+    Leggi il seguente titolo di una notizia e dimmi se per il prezzo delle azioni dell'azienda è una notizia POSITIVA, NEGATIVA o NEUTRA. 
+    Rispondi SOLO con una di queste tre parole: Positive, Negative, Neutral.
     
-    prompt = f"""Sei un esperto analista finanziario. Analizza il sentiment di questo titolo di news. 
-    Rispondi SOLO ed ESCLUSIVAMENTE con una di queste tre opzioni esatte: '🟢 Positive', '🔴 Negative', o '⚪ Neutral'.
-    Non aggiungere spiegazioni, punteggiatura extra o altre parole.
+    Titolo notizia: "{text}"
+    """
     
-    Titolo: '{text}'
-    Risposta:"""
-
-    payload = {
-        "model": "gemma:2b", 
-        "prompt": prompt,
-        "stream": False,
-        "options": {
-            "temperature": 0.0 
-        }
-    }
-
     try:
-        response = requests.post(url, json=payload, timeout=10)
-        response.raise_for_status() 
-        result = response.json().get('response', '').strip()
+        response = requests.post(
+            "http://localhost:11434/api/generate", 
+            json={
+                "model": "gemma:2b", 
+                "prompt": prompt, 
+                "stream": False
+            },
+            timeout=10
+        )
         
-        if "Positive" in result or "🟢" in result: 
-            return "🟢 Positive"
-        elif "Negative" in result or "🔴" in result: 
-            return "🔴 Negative"
-        else: 
-            return "⚪ Neutral"
-            
-    except requests.exceptions.RequestException:
-        return "⚪ Neutral (Ollama Offline)"
+        if response.status_code == 200:
+            ai_reply = response.json()['response'].strip().lower()
+            if "positive" in ai_reply: 
+                return "🟢 Positive"
+            elif "negative" in ai_reply: 
+                return "🔴 Negative"
+            else: 
+                return "⚪ Neutral"
+        else:
+            return "⚪ Neutral (Errore API)"
+    except Exception:
+        score = TextBlob(text).sentiment.polarity
+        if score > 0.1: return "🟢 Positive (TextBlob Fallback)"
+        elif score < -0.1: return "🔴 Negative (TextBlob Fallback)"
+        else: return "⚪ Neutral (TextBlob Fallback)"
 
 def analyze_portfolio_diversification(portfolio_df, total_value):
     """Fa analizzare a Gemma la diversificazione del portafoglio."""
@@ -142,24 +143,11 @@ def analyze_portfolio_diversification(portfolio_df, total_value):
     Rispondi a queste domande: È un portafoglio equilibrato? C'è un rischio di sovraesposizione su un singolo titolo o settore? Qual è il tuo consiglio per bilanciare il rischio?
     Rispondi in italiano in modo chiaro e diretto.
     """
-    
     try:
-        response = requests.post(
-            "http://localhost:11434/api/generate", 
-            json={
-                "model": "gemma:2b", 
-                "prompt": prompt, 
-                "stream": False
-            },
-            timeout=25
-        )
-        
-        if response.status_code == 200:
-            return response.json()['response'].strip()
-        else:
-            return "Errore nella generazione dell'analisi."
-    except Exception:
-        return "Errore di connessione con Ollama. Assicurati che l'app locale sia accesa."
+        response = requests.post("http://localhost:11434/api/generate", json={"model": "gemma:2b", "prompt": prompt, "stream": False, "options": {"temperature": 0.2}}, timeout=30)
+        if response.status_code == 200: return response.json()['response'].strip()
+        else: return "Errore nella generazione."
+    except Exception: return "Errore di connessione con Ollama."
 
 def analyze_financial_statements_ai(ticker, inc_stmt, bal_sheet, cash_flow):
     """Analisi accurata dei bilanci annuali tramite Gemma."""
@@ -270,6 +258,7 @@ def get_batch_prices(tickers):
     # Se ci sono più ticker, costruiamo il dizionario
     return data.iloc[-1].to_dict()
 
+
 @st.cache_data(ttl=3600)
 def fetch_stock_info(ticker):
     stock = yf.Ticker(ticker)
@@ -291,6 +280,7 @@ def fetch_financials(ticker):
 def fetch_news(ticker):
     stock = yf.Ticker(ticker)
     return stock.news
+    
 
 
 # --- SIDEBAR MENU ---
@@ -762,8 +752,6 @@ elif page_choice == "📊 Stock Tracker":
                         st.dataframe(earn_data, use_container_width=True)
                     else:
                         st.info("Upcoming earnings dates not available.")
-                        
-                    st.divider()
                     
                     st.subheader("Financial Highlights")
                     h1, h2, h3 = st.columns(3)
