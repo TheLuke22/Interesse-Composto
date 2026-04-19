@@ -14,6 +14,7 @@ from textblob import TextBlob
 import json
 import random
 import os
+import textwrap
 
 WALL_STREET_QUOTES = [
     "Governments don't rule the world, Goldman Sachs rules the world. - Alessio Rastani",
@@ -3144,7 +3145,7 @@ def render_ai_insights():
       </footer>
     </div>
     """
-    st.markdown(html_content, unsafe_allow_html=True)
+    st.markdown(textwrap.dedent(html_content), unsafe_allow_html=True)
 
 
 if page_choice == "🧠 AI Insights":
