@@ -3145,8 +3145,9 @@ def render_ai_insights():
       </footer>
     </div>
     """
-    st.markdown(textwrap.dedent(html_content), unsafe_allow_html=True)
-
+    import re
+    cleaned_html = re.sub(r'^[ \t]+', '', html_content, flags=re.MULTILINE)
+    st.markdown(cleaned_html, unsafe_allow_html=True)
 
 if page_choice == "🧠 AI Insights":
     render_ai_insights()
