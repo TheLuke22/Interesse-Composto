@@ -432,7 +432,16 @@ def generate_pdf_report(ticker, rt_price, info, sharpe, max_dd):
     pdf.set_font("Arial", '', 12)
     pdf.cell(0, 10, f"Sharpe Ratio: {sharpe:.2f}", ln=True)
     pdf.cell(0, 10, f"Max Drawdown: {max_dd*100:.2f}%", ln=True)
-    return bytes(pdf.output())
+    try:
+        out = pdf.output(dest='S')
+        if isinstance(out, (bytes, bytearray)):
+            return bytes(out)
+        return out.encode('latin-1')
+    except Exception:
+        try:
+            return bytes(pdf.output())
+        except TypeError:
+            return pdf.output().encode('latin-1')
 
 # --- DATA ENGINE (WITH CACHING) ---
 @st.cache_data(ttl=3600)
