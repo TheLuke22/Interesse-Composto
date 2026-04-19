@@ -12,15 +12,166 @@ from fpdf import FPDF
 import io
 from textblob import TextBlob
 import json
+import random
+
+WALL_STREET_QUOTES = [
+    "Governments don't rule the world, Goldman Sachs rules the world. - Alessio Rastani",
+    "Markets can remain irrational longer than you can remain solvent. - John Maynard Keynes",
+    "Bulls make money, bears make money, pigs get slaughtered. - Wall Street Adage",
+    "The stock market is a device for transferring money from the impatient to the patient. - Warren Buffett",
+    "Only when the tide goes out do you discover who's been swimming naked. - Warren Buffett",
+    "Risk comes from not knowing what you're doing. - Warren Buffett",
+    "In investing, what is comfortable is rarely profitable. - Robert Arnott",
+    "Money never sleeps, pal. - Wall Street (1987)",
+    "We simply attempt to be fearful when others are greedy and to be greedy only when others are fearful. - Warren Buffett"
+]
 
 # --- CONFIGURAZIONE ISTITUZIONALE ---
 st.set_page_config(page_title="PRO Quant Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-# Custom CSS per look "Bloomberg Terminal"
-st.markdown("""
+# --- MOTORE PER MARQUEE DATA ---
+@st.cache_data(ttl=3600)
+def get_marquee_data():
+    tickers = {
+        "S&P 500": "SPY", "NASDAQ": "QQQ", "DOW J": "DIA", "GOLD": "GLD", 
+        "BTC": "BTC-USD", "10Y YIELD": "^TNX", "NVIDIA": "NVDA", "APPLE": "AAPL", 
+        "TESLA": "TSLA", "DOLLAR": "DX-Y.NYB", "OIL": "CL=F", "EURO": "EURUSD=X"
+    }
+    marquee_items = []
+    
+    # Per essere robusti in caso d'errore di Rete
+    try:
+        data = yf.download(list(tickers.values()), period="5d", progress=False)['Close']
+        if not data.empty and len(data) >= 2:
+            for name, tk in tickers.items():
+                if tk in data.columns:
+                    series = data[tk].dropna()
+                    if len(series) >= 2:
+                        last_prc = series.iloc[-1]
+                        prev_prc = series.iloc[-2]
+                        pct = ((last_prc - prev_prc) / prev_prc) * 100
+                        color = "#00FF00" if pct >= 0 else "#FF0000"
+                        sign = "+" if pct >= 0 else ""
+                        marquee_items.append(f"<span style='margin-right: 40px;'><b>{name}</b> ${last_prc:,.2f} <span style='color: {color};'>{sign}{pct:.2f}%</span></span>")
+        return " ".join(marquee_items) if marquee_items else "MARKET DATA LIMITED"
+    except:
+        return "MARKET DATA UNAVAILABLE"
+
+marquee_html = get_marquee_data()
+
+# Custom CSS per look "Fintech Premium Glassmorphic" e "Marquee"
+# Custom CSS per look "Institutional Premium" e Leggibilità Avanzata
+st.markdown(f"""
     <style>
-    [data-testid="stMetric"] { background-color: var(--secondary-background-color); padding: 10px; border-radius: 5px; border: 1px solid rgba(128, 128, 128, 0.2); }
+    /* Global Background & Smooth Animation */
+    @keyframes gradientShift {{
+        0%   {{ background-position: 0% 50%; }}
+        50%  {{ background-position: 100% 50%; }}
+        100% {{ background-position: 0% 50%; }}
+    }}
+
+    [data-testid="stAppViewContainer"] {{
+        background: linear-gradient(-45deg, #0a0a12, #171924, #0f0c29, #050510) !important;
+        background-size: 400% 400% !important;
+        animation: gradientShift 30s ease infinite !important;
+        color: #e0e0e0 !important;
+    }}
+
+    /* Overlay per profondità e texture */
+    [data-testid="stAppViewContainer"]::before {{
+        content: "";
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.4) 100%);
+        pointer-events: none;
+        z-index: 0;
+    }}
+
+    /* Fix Leggibilità Testo */
+    .stMarkdown, p, span, label, .stMetric label {{
+        color: #e0e0e0 !important;
+        font-weight: 300;
+    }}
+    
+    h1, h2, h3 {{
+        color: #ffffff !important;
+        text-shadow: 0 0 15px rgba(255,255,255,0.1);
+        letter-spacing: -0.5px;
+    }}
+
+    /* Enhanced Glassmorphic Containers */
+    [data-testid="stMetric"], .stDataFrame, .stExpander, div[data-testid="stVerticalBlock"] > div[style*="background-color"] {{ 
+        background: rgba(255, 255, 255, 0.05) !important; 
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        padding: 20px !important; 
+        border-radius: 16px !important; 
+        border: 1px solid rgba(255, 255, 255, 0.12) !important; 
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
+    }}
+
+    /* Sidebar Styling */
+    [data-testid="stSidebar"] {{
+        background-color: #050510 !important;
+        border-right: 1px solid rgba(255,255,255,0.05);
+    }}
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {{
+        background: transparent !important;
+    }}
+
+    /* Ticker Tape Animation Refined */
+    @keyframes ticker {{
+        0% {{ transform: translate3d(0, 0, 0); }}
+        100% {{ transform: translate3d(-50%, 0, 0); }}
+    }}
+    .ticker-wrap {{
+        width: 100%;
+        overflow: hidden;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(5px);
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-top: -30px; 
+        margin-bottom: 20px;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+    }}
+    .ticker-move {{
+        display: inline-block;
+        white-space: nowrap;
+        animation: ticker 60s linear infinite;
+    }}
+    .ticker-move:hover {{
+        animation-play-state: paused;
+    }}
+    
+    /* Header Transparency */
+    [data-testid="stHeader"] {{
+        background: transparent !important;
+    }}
+
+    /* Custom Scrollbar for Premium Feel */
+    ::-webkit-scrollbar {{
+        width: 8px;
+    }}
+    ::-webkit-scrollbar-track {{
+        background: rgba(0,0,0,0.1);
+    }}
+    ::-webkit-scrollbar-thumb {{
+        background: rgba(255,255,255,0.1);
+        border-radius: 10px;
+    }}
+    ::-webkit-scrollbar-thumb:hover {{
+        background: rgba(255,255,255,0.2);
+    }}
     </style>
+    <div class="ticker-wrap">
+        <div class="ticker-move">
+            {marquee_html}{marquee_html}
+        </div>
+    </div>
     """, unsafe_allow_html=True)
 
 import json
@@ -44,11 +195,40 @@ def save_portfolio(p_list):
     except Exception:
         pass
 
+WATCHLIST_FILE = 'watchlist.json'
+
+def load_watchlist():
+    if os.path.exists(WATCHLIST_FILE):
+        try:
+            with open(WATCHLIST_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return []
+
+def save_watchlist(w_list):
+    try:
+        with open(WATCHLIST_FILE, 'w') as f:
+            json.dump(w_list, f)
+    except Exception:
+        pass
+
 if 'portfolio' not in st.session_state:
     st.session_state['portfolio'] = load_portfolio()
 
+if 'watchlist' not in st.session_state:
+    st.session_state['watchlist'] = load_watchlist()
+
 # --- UTILITY QUANTITATIVE E FORMATTAZIONE ---
 def format_large_numbers(value, is_currency=True):
+    # Se il valore è una Series o lista, prendi il primo elemento (evita errori di ambiguità pandas)
+    if hasattr(value, "__len__") and not isinstance(value, (str, bytes)):
+        if len(value) > 0:
+            import pandas as pd
+            value = value.iloc[0] if isinstance(value, (pd.Series, pd.DataFrame)) else value[0]
+        else:
+            return "N/A"
+            
     if value is None or str(value) == 'nan' or value == 'N/A' or isinstance(value, str): return "N/A"
     prefix = ""
     if value < 0: value = abs(value); prefix = "-"
@@ -59,6 +239,12 @@ def format_large_numbers(value, is_currency=True):
     return f"{prefix}{c}{value:,.2f}"
 
 def format_perc(value):
+    if hasattr(value, "__len__") and not isinstance(value, (str, bytes)):
+        if len(value) > 0:
+            import pandas as pd
+            value = value.iloc[0] if isinstance(value, (pd.Series, pd.DataFrame)) else value[0]
+        else:
+            return "N/A"
     if value is None or str(value) == 'nan' or value == 'N/A': return "N/A"
     return f"{value * 100:.2f}%"
 
@@ -259,6 +445,26 @@ def get_batch_prices(tickers):
     return data.iloc[-1].to_dict()
 
 
+@st.cache_data(ttl=300)
+def fetch_watchlist_prices(ticker_tuple):
+    """Fetch 5-day price data for watchlist tickers (cached 5 min)."""
+    if not ticker_tuple: return {}
+    ticker_list = list(ticker_tuple)
+    try:
+        data = yf.download(ticker_list, period="5d", progress=False)['Close']
+        if isinstance(data, pd.Series):
+            data = data.to_frame(name=ticker_list[0])
+        result = {}
+        for tk in ticker_list:
+            if tk in data.columns:
+                series = data[tk].dropna()
+                if len(series) >= 2:
+                    result[tk] = (float(series.iloc[-1]), float(series.iloc[-2]))
+        return result
+    except:
+        return {}
+
+
 @st.cache_data(ttl=3600)
 def fetch_stock_info(ticker):
     stock = yf.Ticker(ticker)
@@ -275,6 +481,282 @@ def fetch_history(ticker, years):
 def fetch_financials(ticker):
     stock = yf.Ticker(ticker)
     return stock.financials, stock.balance_sheet, stock.cashflow
+
+@st.cache_data(ttl=3600)
+def fetch_financials_extended(ticker):
+    """Fetch extended financial data by combining annual + quarterly from yfinance (~5-8 years)."""
+    stock = yf.Ticker(ticker)
+    inc_a = stock.income_stmt
+    bal_a = stock.balance_sheet
+    cf_a = stock.cashflow
+    try:
+        inc_q = stock.quarterly_income_stmt
+        bal_q = stock.quarterly_balance_sheet
+        cf_q = stock.quarterly_cashflow
+    except Exception:
+        return inc_a, bal_a, cf_a
+
+    def _q_to_annual(q_df, method='sum'):
+        """Aggregate quarterly DataFrame to annual periods."""
+        if q_df is None or q_df.empty:
+            return pd.DataFrame()
+        try:
+            qt = q_df.T.copy()
+            qt.index = pd.to_datetime(qt.index)
+            qt = qt.apply(pd.to_numeric, errors='coerce')
+            qt['_yr'] = qt.index.year
+            if method == 'sum':
+                cnts = qt.groupby('_yr').size()
+                full = cnts[cnts >= 4].index
+                if full.empty:
+                    return pd.DataFrame()
+                agg = qt[qt['_yr'].isin(full)].groupby('_yr').sum()
+            else:
+                agg = qt.sort_index().groupby('_yr').last()
+            agg.drop(columns=['_yr'], inplace=True, errors='ignore')
+            res = agg.T
+            res.columns = [pd.Timestamp(year=int(y), month=12, day=31) for y in res.columns]
+            return res
+        except Exception:
+            return pd.DataFrame()
+
+    def _merge(annual_df, q_agg_df):
+        """Merge annual + quarterly-aggregated, preferring annual for overlapping years."""
+        if annual_df is None or annual_df.empty:
+            return q_agg_df if q_agg_df is not None and not q_agg_df.empty else pd.DataFrame()
+        if q_agg_df is None or q_agg_df.empty:
+            return annual_df
+        try:
+            a_years = {c.year for c in annual_df.columns if hasattr(c, 'year')}
+            extra = [c for c in q_agg_df.columns if hasattr(c, 'year') and c.year not in a_years]
+            if extra:
+                m = pd.concat([annual_df, q_agg_df[extra]], axis=1)
+                return m.reindex(sorted(m.columns), axis=1)
+            return annual_df
+        except Exception:
+            return annual_df
+
+    inc_qa = _q_to_annual(inc_q, 'sum')
+    bal_qa = _q_to_annual(bal_q, 'last')
+    cf_qa = _q_to_annual(cf_q, 'sum')
+    return _merge(inc_a, inc_qa), _merge(bal_a, bal_qa), _merge(cf_a, cf_qa)
+
+@st.cache_data(ttl=3600)
+def fetch_fmp_financials(ticker, api_key):
+    """Fetch annual financials from Financial Modeling Prep (stable API)."""
+    base_url = "https://financialmodelingprep.com/stable"
+
+    def _get(endpoint):
+        try:
+            url = f"{base_url}/{endpoint}?symbol={ticker}&apikey={api_key}"
+            r = requests.get(url, timeout=15)
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, list) and len(data) > 0:
+                    return data
+        except Exception:
+            pass
+        return None
+
+    inc_raw = _get("income-statement")
+    bal_raw = _get("balance-sheet-statement")
+    cf_raw = _get("cash-flow-statement")
+
+    def _build_df(raw_data, field_map):
+        """Convert FMP JSON to a yfinance-compatible DataFrame (rows=items, cols=dates)."""
+        if not raw_data:
+            return pd.DataFrame()
+        records = {}
+        for item in raw_data:
+            try:
+                col_date = pd.Timestamp(item['date'])
+            except Exception:
+                continue
+            for fmp_key, yf_key in field_map.items():
+                if yf_key not in records:
+                    records[yf_key] = {}
+                val = item.get(fmp_key)
+                if val is not None:
+                    records[yf_key][col_date] = val
+        if not records:
+            return pd.DataFrame()
+        df = pd.DataFrame(records).T
+        df = df.apply(pd.to_numeric, errors='coerce')
+        df = df.reindex(sorted(df.columns), axis=1)
+        return df
+
+    inc_map = {
+        'revenue': 'Total Revenue', 'netIncome': 'Net Income',
+        'grossProfit': 'Gross Profit', 'operatingIncome': 'Operating Income',
+        'ebitda': 'EBITDA', 'eps': 'Basic EPS', 'epsDiluted': 'Diluted EPS',
+    }
+    bal_map = {
+        'totalDebt': 'Total Debt', 'totalStockholdersEquity': 'Stockholders Equity',
+        'totalAssets': 'Total Assets',
+    }
+    cf_map = {
+        'freeCashFlow': 'Free Cash Flow', 'operatingCashFlow': 'Operating Cash Flow',
+    }
+    return _build_df(inc_raw, inc_map), _build_df(bal_raw, bal_map), _build_df(cf_raw, cf_map)
+
+
+def _merge_financial_dfs(df_primary, df_secondary):
+    """Merge two financial DataFrames, preferring primary for overlapping years and adding extra years from secondary."""
+    if df_primary is None or df_primary.empty:
+        return df_secondary if df_secondary is not None and not df_secondary.empty else pd.DataFrame()
+    if df_secondary is None or df_secondary.empty:
+        return df_primary
+    try:
+        p_years = {c.year for c in df_primary.columns if hasattr(c, 'year')}
+        extra_cols = [c for c in df_secondary.columns if hasattr(c, 'year') and c.year not in p_years]
+        if extra_cols:
+            # Only keep rows that exist in primary (avoid mismatched row names)
+            common_rows = df_primary.index.intersection(df_secondary.index)
+            if not common_rows.empty:
+                merged = pd.concat([df_primary, df_secondary.loc[common_rows, extra_cols]], axis=1)
+            else:
+                merged = pd.concat([df_primary, df_secondary[extra_cols]], axis=1)
+            return merged.reindex(sorted(merged.columns), axis=1)
+        return df_primary
+    except Exception:
+        return df_primary
+
+
+@st.cache_data(ttl=3600)
+def fetch_macrotrends_financials(ticker, limit_years=10):
+    """Scrape 10-15 years of key annual financials from macrotrends.net."""
+    from bs4 import BeautifulSoup
+    import re as _re
+
+    headers_req = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'}
+
+    # Step 1: Resolve company slug (macrotrends URLs require company-name in path)
+    def _resolve_slug(tk):
+        try:
+            test_url = f'https://www.macrotrends.net/stocks/charts/{tk}/x/revenue'
+            r = requests.get(test_url, headers=headers_req, timeout=10, allow_redirects=True)
+            if r.status_code == 200:
+                m = _re.search(rf'/stocks/charts/{tk}/([^/]+)/', r.url, _re.IGNORECASE)
+                if m:
+                    return m.group(1)
+                m2 = _re.search(rf'/stocks/charts/{tk}/([^/"]+)/revenue', r.text, _re.IGNORECASE)
+                if m2:
+                    return m2.group(1)
+        except Exception:
+            pass
+        return tk.lower()
+
+    slug = _resolve_slug(ticker)
+
+    # Step 2: Metrics to scrape
+    metric_slugs = {
+        'Total Revenue': 'revenue',
+        'Net Income': 'net-income',
+        'Diluted EPS': 'eps-earnings-per-share-diluted',
+        'EBITDA': 'ebitda',
+        'Total Debt': 'total-long-term-debt',
+        'Free Cash Flow': 'free-cash-flow',
+    }
+
+    def _parse_value(text):
+        text = text.strip().replace(',', '').replace('$', '')
+        if not text or text == '-':
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return None
+
+    def _scrape_metric(metric_slug):
+        url = f'https://www.macrotrends.net/stocks/charts/{ticker}/{slug}/{metric_slug}'
+        try:
+            r = requests.get(url, headers=headers_req, timeout=10)
+            if r.status_code != 200:
+                return {}
+            soup = BeautifulSoup(r.text, 'html.parser')
+            for t in soup.find_all('table'):
+                rows = t.find_all('tr')
+                if len(rows) < 3:
+                    continue
+                first_data_row = rows[1].find_all(['th', 'td'])
+                if not first_data_row:
+                    continue
+                first_text = first_data_row[0].get_text(strip=True)
+                if len(first_text) != 4 or not first_text.isdigit():
+                    continue
+                result = {}
+                for row in rows[1:]:
+                    cells = [td.get_text(strip=True) for td in row.find_all(['th', 'td'])]
+                    if len(cells) >= 2 and len(cells[0]) == 4 and cells[0].isdigit():
+                        year = int(cells[0])
+                        val = _parse_value(cells[1])
+                        if val is not None:
+                            result[year] = val
+                return result
+        except Exception:
+            pass
+        return {}
+
+    # Step 3: Scrape all metrics
+    all_data = {}
+    for row_name, ms in metric_slugs.items():
+        data = _scrape_metric(ms)
+        if data:
+            all_data[row_name] = data
+
+    if not all_data:
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+    # Step 4: Build DataFrames
+    million_scale = {'Total Revenue', 'Net Income', 'EBITDA', 'Free Cash Flow', 'Total Debt'}
+
+    all_years = set()
+    for data in all_data.values():
+        all_years.update(data.keys())
+    all_years = sorted(all_years)
+    if len(all_years) > limit_years:
+        all_years = all_years[-limit_years:]
+
+    col_dates = [pd.Timestamp(year=y, month=12, day=31) for y in all_years]
+
+    inc_rows = ['Total Revenue', 'Net Income', 'Diluted EPS', 'EBITDA']
+    inc_data = {}
+    for rn in inc_rows:
+        if rn in all_data:
+            vals = []
+            for y in all_years:
+                raw = all_data[rn].get(y)
+                if raw is not None and rn in million_scale:
+                    vals.append(raw * 1_000_000)
+                else:
+                    vals.append(raw)
+            inc_data[rn] = vals
+
+    bal_data = {}
+    if 'Total Debt' in all_data:
+        bal_data['Total Debt'] = [
+            (all_data['Total Debt'].get(y, None) or 0) * 1_000_000 if all_data['Total Debt'].get(y) is not None else None
+            for y in all_years
+        ]
+
+    cf_data = {}
+    if 'Free Cash Flow' in all_data:
+        cf_data['Free Cash Flow'] = [
+            (all_data['Free Cash Flow'].get(y, None) or 0) * 1_000_000 if all_data['Free Cash Flow'].get(y) is not None else None
+            for y in all_years
+        ]
+
+    def _build(data_dict):
+        if not data_dict:
+            return pd.DataFrame()
+        df = pd.DataFrame(data_dict, index=col_dates).T
+        df = df.apply(pd.to_numeric, errors='coerce')
+        return df
+
+    if 'Diluted EPS' in inc_data:
+        inc_data['Basic EPS'] = inc_data['Diluted EPS']
+
+    return _build(inc_data), _build(bal_data), _build(cf_data)
 
 @st.cache_data(ttl=3600)
 def fetch_news(ticker):
@@ -375,6 +857,7 @@ st.sidebar.markdown("""
 </div>
 """, unsafe_allow_html=True)
 page_choice = st.sidebar.radio("Tool:", [
+    "🏠 Home",
     "📈 Compound Interest", 
     "📊 Stock Tracker", 
     "📁 My Portfolio", 
@@ -386,9 +869,409 @@ page_choice = st.sidebar.radio("Tool:", [
 
 
 # ==========================================
+# PAGE 0: HOME
+# ==========================================
+if page_choice == "🏠 Home":
+    st.title("🏠 Market Dashboard")
+    st.markdown("<p style='color: #8A929A; font-size: 16px; margin-bottom:20px;'>Live Snapshot of the S&P 500 Heavyweights</p>", unsafe_allow_html=True)
+    
+    # --- WATCHLIST SECTION ---
+    with st.expander("⭐ My Watchlist", expanded=bool(st.session_state.get('watchlist'))):
+        wl_c1, wl_c2, wl_c3 = st.columns([3, 1, 1])
+        with wl_c1:
+            new_watch_ticker = st.text_input("Ticker", key="wl_input", label_visibility="collapsed", placeholder="Add ticker to watchlist (e.g. NVDA)...").upper().strip()
+        with wl_c2:
+            if st.button("➕ Add", key="wl_add_btn", use_container_width=True) and new_watch_ticker:
+                if new_watch_ticker not in st.session_state['watchlist']:
+                    st.session_state['watchlist'].append(new_watch_ticker)
+                    save_watchlist(st.session_state['watchlist'])
+                    st.toast(f"{new_watch_ticker} added to watchlist!", icon="⭐")
+                    st.rerun()
+                else:
+                    st.toast(f"{new_watch_ticker} is already in your watchlist", icon="⚠️")
+        with wl_c3:
+            if st.button("🗑️ Clear", key="wl_clear_btn", use_container_width=True) and st.session_state['watchlist']:
+                st.session_state['watchlist'] = []
+                save_watchlist([])
+                st.rerun()
+        
+        if st.session_state['watchlist']:
+            wl_prices = fetch_watchlist_prices(tuple(st.session_state['watchlist']))
+            if wl_prices:
+                wl_html = '<div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px;">'
+                for wl_tk in st.session_state['watchlist']:
+                    if wl_tk in wl_prices:
+                        wl_curr, wl_prev = wl_prices[wl_tk]
+                        wl_chg = ((wl_curr - wl_prev) / wl_prev) * 100 if wl_prev != 0 else 0
+                        wl_color = "#22c55e" if wl_chg >= 0 else "#ef4444"
+                        wl_sign = "+" if wl_chg >= 0 else ""
+                        wl_arrow = "▲" if wl_chg >= 0 else "▼"
+                        wl_html += f'<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-left: 3px solid {wl_color}; border-radius: 10px; padding: 14px 20px; min-width: 170px; flex: 1; max-width: 220px;"><div style="font-weight: 700; font-size: 15px; color: #3b82f6;">{wl_tk}</div><div style="font-size: 20px; font-weight: 700; margin-top: 6px;">${wl_curr:,.2f}</div><div style="color: {wl_color}; font-weight: 600; font-size: 14px; margin-top: 2px;">{wl_arrow} {wl_sign}{wl_chg:.2f}%</div></div>'
+                    else:
+                        wl_html += f'<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 14px 20px; min-width: 170px; flex: 1; max-width: 220px;"><div style="font-weight: 700; font-size: 15px; color: #3b82f6;">{wl_tk}</div><div style="font-size: 14px; color: #64748b; margin-top: 6px;">Data unavailable</div></div>'
+                wl_html += '</div>'
+                st.markdown(wl_html, unsafe_allow_html=True)
+            
+            # Remove buttons for each ticker
+            st.write("")
+            max_wl_cols = min(len(st.session_state['watchlist']), 8)
+            wl_rem_cols = st.columns(max_wl_cols)
+            for wi, wl_tk in enumerate(st.session_state['watchlist'][:8]):
+                with wl_rem_cols[wi]:
+                    if st.button(f"✕ {wl_tk}", key=f"wl_rem_{wl_tk}", use_container_width=True):
+                        st.session_state['watchlist'].remove(wl_tk)
+                        save_watchlist(st.session_state['watchlist'])
+                        st.rerun()
+    
+    st.markdown("""
+    <style>
+    .market-table { width: 100%; border-collapse: collapse; color: #E2E8F0; font-family: 'Inter', sans-serif; }
+    .market-table th { text-align: left; padding: 12px 15px; color: #64748b; font-size: 12px; text-transform: uppercase; border-bottom: 2px solid #334155; letter-spacing: 0.05em; }
+    .market-table td { padding: 15px 15px; border-bottom: 1px solid #1e293b; font-size: 15px; vertical-align: middle; }
+    .market-table tbody tr { transition: background-color 0.15s ease; }
+    .market-table tbody tr:hover { background-color: rgba(255, 255, 255, 0.04); }
+    .tk-name-link { color: #3b82f6; text-decoration: none; font-weight: 600; }
+    .img-logo { width: 28px; height: 28px; border-radius: 50%; vertical-align: middle; margin-right: 12px; background-color: white; object-fit: contain; padding: 2px; }
+    .pill { padding: 6px 14px; border-radius: 6px; font-weight: 600; font-size: 14px; display: inline-block; min-width: 85px; text-align: center; }
+    .pill-green { background-color: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .pill-red { background-color: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .pill-neutral { background-color: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+    .home-filter-btn { display: inline-block; padding: 8px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; margin-right: 8px; cursor: pointer; border: 1px solid #334155; color: #94a3b8; transition: all 0.2s ease; }
+    .home-filter-active { background-color: #3b82f6; color: white; border-color: #3b82f6; }
+    .mcap-val { color: #94a3b8; font-weight: 500; }
+    .rank-num { color: #475569; font-weight: 600; font-size: 13px; margin-right: 10px; }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    TOP_25_SP500_TICKERS = [
+        "NVDA", "AAPL", "MSFT", "GOOGL", "AMZN", "META", "BRK-B", "TSLA", "AVGO", "WMT", 
+        "LLY", "JPM", "V", "UNH", "XOM", "MA", "PG", "JNJ", "COST", "HD", "ABBV", "MRK", 
+        "BAC", "CRM", "NFLX"
+    ]
+    
+    # Mapping statico nome azienda -> dominio per loghi (evita chiamate tk.info lentissime)
+    COMPANY_INFO = {
+        "NVDA": ("NVIDIA", "nvidia.com"), "AAPL": ("Apple", "apple.com"), "MSFT": ("Microsoft", "microsoft.com"),
+        "GOOGL": ("Alphabet", "abc.xyz"), "AMZN": ("Amazon.com", "amazon.com"), "META": ("Meta Platforms", "meta.com"),
+        "BRK-B": ("Berkshire Hathaway", "berkshirehathaway.com"), "TSLA": ("Tesla", "tesla.com"),
+        "AVGO": ("Broadcom", "broadcom.com"), "WMT": ("Walmart", "walmart.com"), "LLY": ("Eli Lilly", "lilly.com"),
+        "JPM": ("JPMorgan Chase", "jpmorganchase.com"), "V": ("Visa", "visa.com"), "UNH": ("UnitedHealth", "unitedhealthgroup.com"),
+        "XOM": ("Exxon Mobil", "exxonmobil.com"), "MA": ("Mastercard", "mastercard.com"),
+        "PG": ("Procter & Gamble", "pg.com"), "JNJ": ("Johnson & Johnson", "jnj.com"),
+        "COST": ("Costco", "costco.com"), "HD": ("Home Depot", "homedepot.com"),
+        "ABBV": ("AbbVie", "abbvie.com"), "MRK": ("Merck", "merck.com"),
+        "BAC": ("Bank of America", "bankofamerica.com"), "CRM": ("Salesforce", "salesforce.com"),
+        "NFLX": ("Netflix", "netflix.com"),
+    }
+    
+    SECTOR_MAP = {
+        "NVDA": "Technology", "AAPL": "Technology", "MSFT": "Technology", "GOOGL": "Technology",
+        "AMZN": "Consumer Cyclical", "META": "Technology", "BRK-B": "Financials", "TSLA": "Consumer Cyclical",
+        "AVGO": "Technology", "WMT": "Consumer Defensive", "LLY": "Healthcare", "JPM": "Financials",
+        "V": "Financials", "UNH": "Healthcare", "XOM": "Energy", "MA": "Financials",
+        "PG": "Consumer Defensive", "JNJ": "Healthcare", "COST": "Consumer Defensive", "HD": "Consumer Cyclical",
+        "ABBV": "Healthcare", "MRK": "Healthcare", "BAC": "Financials", "CRM": "Technology", "NFLX": "Communication Services",
+    }
+    
+    if 'show_all_sp500' not in st.session_state:
+        st.session_state.show_all_sp500 = False
+    if 'home_filter' not in st.session_state:
+        st.session_state.home_filter = "S&P 500"
+        
+    @st.cache_data(ttl=300)
+    def fetch_home_data(ticker_tuple):
+        """Hybrid: batch yf.download per i prezzi + fast_info parallelo per market cap."""
+        import concurrent.futures
+        import time as _time
+        ticker_list = list(ticker_tuple)
+        
+        # STEP 1: Batch download prezzi (una sola chiamata HTTP per tutti)
+        try:
+            raw = yf.download(ticker_list, period="5d", progress=False, threads=True)
+            if isinstance(raw.columns, pd.MultiIndex):
+                batch_prices = raw['Close']
+            else:
+                batch_prices = raw[['Close']].rename(columns={'Close': ticker_list[0]}) if len(ticker_list) == 1 else raw['Close']
+        except:
+            batch_prices = pd.DataFrame()
+        
+        if batch_prices.empty:
+            return pd.DataFrame()
+        
+        # Se è un solo ticker, yf.download ritorna una Series
+        if isinstance(batch_prices, pd.Series):
+            batch_prices = batch_prices.to_frame(name=ticker_list[0])
+        
+        # Identifica ticker con dati validi
+        valid_tickers = []
+        failed_tickers = []
+        price_data = {}
+        for tkr in ticker_list:
+            if tkr not in batch_prices.columns:
+                failed_tickers.append(tkr)
+                continue
+            series = batch_prices[tkr].dropna()
+            if len(series) >= 2:
+                curr = float(series.iloc[-1])
+                prev = float(series.iloc[-2])
+                pct = ((curr - prev) / prev) * 100 if prev != 0 else 0.0
+                price_data[tkr] = (curr, pct)
+                valid_tickers.append(tkr)
+            else:
+                failed_tickers.append(tkr)
+        
+        # Retry singolo per ticker rate-limited dal batch
+        if failed_tickers:
+            _time.sleep(0.5)
+            for tkr in failed_tickers:
+                try:
+                    hist = yf.Ticker(tkr).history(period="5d")
+                    if not hist.empty and len(hist) >= 2:
+                        curr = float(hist['Close'].iloc[-1])
+                        prev = float(hist['Close'].iloc[-2])
+                        pct = ((curr - prev) / prev) * 100 if prev != 0 else 0.0
+                        price_data[tkr] = (curr, pct)
+                        valid_tickers.append(tkr)
+                except:
+                    pass
+        
+        if not valid_tickers:
+            return pd.DataFrame()
+        
+        # STEP 2: Fetch market caps in parallelo con retry + throttle
+        def get_mcap(tkr):
+            for attempt in range(3):
+                try:
+                    mcap = float(yf.Ticker(tkr).fast_info.market_cap)
+                    return tkr, mcap
+                except:
+                    _time.sleep(0.3 * (attempt + 1))
+            return tkr, 0.0
+        
+        # Limita concorrenza per evitare rate-limit Yahoo Finance
+        workers = min(15, len(valid_tickers))
+        mcap_map = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            for tkr, mcap in executor.map(get_mcap, valid_tickers):
+                mcap_map[tkr] = mcap
+        
+        # STEP 3: Assembla risultati
+        results = []
+        for tkr in valid_tickers:
+            curr, pct = price_data[tkr]
+            mcap = mcap_map.get(tkr, 0.0)
+            
+            if tkr in COMPANY_INFO:
+                name, domain = COMPANY_INFO[tkr]
+            else:
+                name, domain = tkr, ""
+            
+            results.append({
+                "Ticker": tkr, "Name": name, "Price": curr, 
+                "Change": pct, "MarketCap": mcap, "Domain": domain
+            })
+        
+        df = pd.DataFrame(results)
+        if not df.empty:
+            df.sort_values(by="MarketCap", ascending=False, inplace=True)
+            df.reset_index(drop=True, inplace=True)
+        return df
+
+    @st.cache_data(ttl=3600*24)
+    def get_full_sp500_list():
+        """Scarica la lista completa S&P 500 da Wikipedia, con cleanup ticker."""
+        url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+        html_table = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}).text
+        raw_tickers = pd.read_html(io.StringIO(html_table))[0]['Symbol'].tolist()
+        
+        # Converti punti in trattini (es. BRK.B -> BRK-B, BF.B -> BF-B)
+        cleaned = [t.replace('.', '-') for t in raw_tickers]
+        
+        # Rimuovi duplicati classe azioni (GOOG/GOOGL -> tieni solo GOOGL)
+        seen_base = set()
+        deduped = []
+        for t in cleaned:
+            base = t.split('-')[0] if t not in ('BRK-B', 'BF-B') else t
+            # Gestione specifica Alphabet: GOOG e GOOGL
+            if base == 'GOOG' and 'GOOGL' in cleaned:
+                if t != 'GOOGL':
+                    continue  # Salta GOOG, tieni solo GOOGL
+            if t not in deduped:
+                deduped.append(t)
+        return deduped
+
+    @st.cache_data(ttl=3600*24)
+    def get_sp500_sectors():
+        """Fetch GICS sector mapping from Wikipedia for all S&P 500 tickers."""
+        try:
+            url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+            html = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}).text
+            df_wiki = pd.read_html(io.StringIO(html))[0]
+            return dict(zip(df_wiki['Symbol'].str.replace('.', '-', regex=False), df_wiki['GICS Sector']))
+        except:
+            return {}
+
+    # --- Filter Tabs ---
+    filter_col1, filter_col2, filter_col3 = st.columns([1, 1, 1])
+    with filter_col1:
+        if st.button("📊 S&P 500", key="filter_sp500", type="primary" if st.session_state.home_filter == "S&P 500" else "secondary"):
+            st.session_state.home_filter = "S&P 500"
+            st.rerun()
+    with filter_col2:
+        if st.button("🟢 Gainers", key="filter_gainers", type="primary" if st.session_state.home_filter == "Gainers" else "secondary"):
+            st.session_state.home_filter = "Gainers"
+            st.rerun()
+    with filter_col3:
+        if st.button("🔴 Losers", key="filter_losers", type="primary" if st.session_state.home_filter == "Losers" else "secondary"):
+            st.session_state.home_filter = "Losers"
+            st.rerun()
+    
+    st.write("")
+
+    tks_to_fetch = TOP_25_SP500_TICKERS
+    
+    if st.session_state.show_all_sp500:
+        with st.spinner(f"Scaricamento composizione intero S&P 500... | '{random.choice(WALL_STREET_QUOTES)}'"):
+            try:
+                tks_to_fetch = get_full_sp500_list()
+            except:
+                st.error("Wikipedia Data non disponibile.")
+
+    with st.spinner(f"Sincronizzazione dati live... | '{random.choice(WALL_STREET_QUOTES)}'"):
+        df_display = fetch_home_data(tuple(tks_to_fetch))
+    
+    # Applica filtro Gainers/Losers
+    if not df_display.empty:
+        if st.session_state.home_filter == "Gainers":
+            df_display = df_display[df_display['Change'] > 0].sort_values(by='Change', ascending=False)
+        elif st.session_state.home_filter == "Losers":
+            df_display = df_display[df_display['Change'] < 0].sort_values(by='Change', ascending=True)
+    
+    # Market Summary bar
+    if not df_display.empty:
+        avg_change = df_display['Change'].mean()
+        total_mcap = df_display['MarketCap'].sum()
+        gainers_count = (df_display['Change'] > 0).sum()
+        losers_count = (df_display['Change'] < 0).sum()
+        
+        sm1, sm2, sm3, sm4 = st.columns(4)
+        sm1.metric("Stocks Loaded", f"{len(df_display)}")
+        sm2.metric("Avg Change", f"{avg_change:+.2f}%")
+        sm3.metric("Gainers", f"{gainers_count}", delta=f"{gainers_count}", delta_color="normal")
+        sm4.metric("Losers", f"{losers_count}", delta=f"-{losers_count}", delta_color="normal")
+        st.write("")
+        
+    if not df_display.empty:
+        html_str = '<table class="market-table"><thead><tr><th style="width:5%">#</th><th style="width:30%">NAME</th><th style="width:15%">TICKER</th><th style="width:18%">LAST PRICE</th><th style="width:17%">PRICE CHANGE</th><th style="width:15%">MARKET CAP</th></tr></thead><tbody>'
+        for idx, (_, row) in enumerate(df_display.iterrows(), 1):
+            tkr = row['Ticker']
+            name = row['Name']
+            if len(name) > 28: name = name[:25] + "..."
+            price = row['Price']
+            change = row['Change']
+            mcap = row['MarketCap']
+            domain = row['Domain']
+            
+            if mcap >= 1e12: mcap_str = f"${mcap/1e12:.3f}T"
+            elif mcap >= 1e9: mcap_str = f"${mcap/1e9:.3f}B"
+            elif mcap >= 1e6: mcap_str = f"${mcap/1e6:.1f}M"
+            else: mcap_str = "N/A"
+            
+            if change > 0:
+                pill_class = "pill-green"
+                sign = "+"
+            elif change < 0:
+                pill_class = "pill-red"
+                sign = ""
+            else:
+                pill_class = "pill-neutral"
+                sign = ""
+            
+            if domain:
+                logo_img = f"<img src='https://logo.clearbit.com/{domain}' class='img-logo' onerror=\"this.onerror=null; this.src='https://ui-avatars.com/api/?name={tkr}&background=1e293b&color=3b82f6&rounded=true&font-size=0.33';\">"
+            else:
+                logo_img = f"<img src='https://ui-avatars.com/api/?name={tkr}&background=1e293b&color=3b82f6&rounded=true&font-size=0.33' class='img-logo'>"
+            
+            html_str += f'''<tr>
+                <td><span class="rank-num">{idx}</span></td>
+                <td>{logo_img}<strong>{name}</strong></td>
+                <td><span class="tk-name-link">{tkr}</span></td>
+                <td><strong>${price:,.2f}</strong></td>
+                <td><span class="pill {pill_class}">{sign}{change:.2f}%</span></td>
+                <td><span class="mcap-val">{mcap_str}</span></td>
+            </tr>'''
+        html_str += "</tbody></table>"
+        st.markdown(html_str, unsafe_allow_html=True)
+    else:
+        if st.session_state.home_filter != "S&P 500":
+            st.info(f"Nessun titolo trovato nella categoria '{st.session_state.home_filter}' al momento.")
+        else:
+            st.error("Nessun dato di mercato disponibile al momento.")
+        
+    st.write("")
+    if st.session_state.show_all_sp500:
+        if st.button("🔼 Show Top 25 Only", key="btn_show_less", use_container_width=True):
+            st.session_state.show_all_sp500 = False
+            st.rerun()
+    else:
+        if st.button("⬇️ See all S&P 500", key="btn_see_all", use_container_width=True):
+            st.session_state.show_all_sp500 = True
+            st.rerun()
+
+    # --- S&P 500 HEATMAP ---
+    if not df_display.empty:
+        st.divider()
+        st.subheader("🗺️ Market Heatmap")
+        st.caption("Size = Market Cap | Color = Daily Change %")
+        
+        # Get sector data
+        try:
+            wiki_sectors = get_sp500_sectors()
+        except:
+            wiki_sectors = {}
+        
+        df_heat = df_display.copy()
+        df_heat['Sector'] = df_heat['Ticker'].map(
+            lambda t: wiki_sectors.get(t, SECTOR_MAP.get(t, 'Other'))
+        )
+        df_heat = df_heat[df_heat['MarketCap'] > 0]
+        
+        if not df_heat.empty:
+            df_heat['Root'] = 'S&P 500'
+            
+            fig_heatmap = px.treemap(
+                df_heat,
+                path=['Root', 'Sector', 'Ticker'],
+                values='MarketCap',
+                color='Change',
+                color_continuous_scale=[
+                    [0.0, '#b71c1c'], [0.2, '#e53935'],
+                    [0.4, '#616161'], [0.5, '#424242'], [0.6, '#616161'],
+                    [0.8, '#43a047'], [1.0, '#1b5e20']
+                ],
+                range_color=[-4, 4],
+            )
+            fig_heatmap.update_traces(
+                texttemplate='<b>%{label}</b><br>%{color:+.2f}%',
+                textfont=dict(size=13),
+                marker=dict(cornerradius=3)
+            )
+            fig_heatmap.update_layout(
+                margin=dict(t=30, b=0, l=0, r=0),
+                height=550,
+                coloraxis_colorbar=dict(
+                    title="Change %",
+                    ticksuffix="%",
+                    thickness=15,
+                    len=0.6
+                )
+            )
+            st.plotly_chart(fig_heatmap, use_container_width=True)
+
+# ==========================================
 # PAGE 1: COMPOUND INTEREST
 # ==========================================
-if page_choice == "📈 Compound Interest":
+elif page_choice == "📈 Compound Interest":
     st.title("💸 Compound Interest Calculator")
     st.divider()
     col1, col2 = st.columns(2)
@@ -417,18 +1300,20 @@ elif page_choice == "📊 Stock Tracker":
     st.title("📊 Institutional Equity Analysis")
     st.divider()
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1: ticker_input = st.text_input("Stock Ticker", value="KO").upper()
-    with col2: invested_cap = st.number_input("Initial Investment ($)", min_value=100.0, value=1000.0)
-    with col3: backtest_years = st.slider("Years of History", min_value=1, max_value=20, value=10)
-    with col4: benchmark_ticker = st.text_input("Benchmark (Compare)", value="SPY").upper()
+    with st.form("stock_tracker_form", enter_to_submit=True):
+        col1, col2, col3, col4 = st.columns(4)
+        with col1: ticker_input = st.text_input("Stock Ticker", value="KO").upper()
+        with col2: invested_cap = st.number_input("Initial Investment ($)", min_value=100.0, value=1000.0)
+        with col3: backtest_years = st.slider("Years of History", min_value=1, max_value=20, value=10)
+        with col4: benchmark_ticker = st.text_input("Benchmark (Compare)", value="SPY").upper()
 
-    # Salviamo i parametri in sessione per non perderli al ricarico della pagina (es. al toggle DRIP)
-    if st.button("🚀 Run Deep Analysis", type="primary", use_container_width=True):
-        st.session_state['active_ticker'] = ticker_input
-        st.session_state['active_cap'] = invested_cap
-        st.session_state['active_years'] = backtest_years
-        st.session_state['active_bench'] = benchmark_ticker
+        # Salviamo i parametri in sessione per non perderli al ricarico della pagina (es. al toggle DRIP)
+        submitted = st.form_submit_button("🚀 Run Deep Analysis", type="primary", use_container_width=True)
+        if submitted:
+            st.session_state['active_ticker'] = ticker_input
+            st.session_state['active_cap'] = invested_cap
+            st.session_state['active_years'] = backtest_years
+            st.session_state['active_bench'] = benchmark_ticker
 
     if 'active_ticker' in st.session_state:
         a_ticker = st.session_state['active_ticker']
@@ -534,11 +1419,12 @@ elif page_choice == "📊 Stock Tracker":
                         mime="application/pdf"
                     )
 
-                tab_price, tab_divs, tab_mc, tab_holders, tab_funds, tab_dcf = st.tabs([
+                tab_price, tab_divs, tab_mc, tab_holders, tab_fhealth, tab_funds, tab_dcf = st.tabs([
                     "📊 Price & Tech Analysis", 
                     "💰 Dividends & Returns", 
                     "🎲 Projections", 
                     "🏦 Ownership", 
+                    "📈 Financial Health",
                     "📅 Fundamentals",
                     "🧮 DCF Valuation"
                 ])
@@ -679,13 +1565,45 @@ elif page_choice == "📊 Stock Tracker":
                         
                     future_dates = pd.date_range(start=last_date, periods=sim_days, freq='B')
                     
-                    fig_mc = go.Figure()
-                    for i in range(num_sim):
-                        fig_mc.add_trace(go.Scatter(x=future_dates, y=sims[:, i], mode='lines', line=dict(width=1, color='rgba(46, 134, 193, 0.05)'), showlegend=False, hoverinfo='skip'))
-                    fig_mc.add_trace(go.Scatter(x=future_dates, y=sims.mean(axis=1), mode='lines', name='Expected Average', line=dict(width=3, color='#E74C3C')))
+                    # --- 3D MONTE CARLO PROBABILITY SURFACE ---
+                    # Appiattiamo le simulazioni per formare una matrice di densità 2D
+                    time_idx = np.repeat(np.arange(sim_days), num_sim)
+                    price_vals = sims.flatten()
                     
-                    fig_mc.update_layout(xaxis_title="Date", yaxis_title="Projected Price ($)", hovermode="x unified", margin=dict(l=0, r=0, t=30, b=0))
-                    st.plotly_chart(fig_mc, use_container_width=True)
+                    try:
+                        H, xedges, yedges = np.histogram2d(time_idx, price_vals, bins=[50, 50])
+                        H_z = H.T
+                        
+                        # Sfoca la superficie per renderla più 'rocciosa' e naturale se c'è scipy
+                        try:
+                            from scipy.ndimage import gaussian_filter
+                            H_z = gaussian_filter(H_z, sigma=1.5)
+                        except:
+                            pass
+                            
+                        fig_mc = go.Figure(data=[go.Surface(
+                            z=H_z,
+                            x=xedges[:-1], 
+                            y=yedges[:-1],
+                            colorscale='Plasma',
+                            opacity=0.9
+                        )])
+                        
+                        fig_mc.update_layout(
+                            scene=dict(
+                                xaxis_title='Days in Future',
+                                yaxis_title='Projected Price ($)',
+                                zaxis_title='Probability Heat',
+                                xaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(255,255,255,0.1)"),
+                                yaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(255,255,255,0.1)"),
+                                zaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(255,255,255,0.1)", showticklabels=False)
+                            ),
+                            margin=dict(l=0, r=0, b=0, t=0),
+                            height=600
+                        )
+                        st.plotly_chart(fig_mc, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Impossibile generare la topografia 3D: {e}")
 
                 # --- TAB 4: OWNERSHIP ---
                 with tab_holders:
@@ -744,7 +1662,273 @@ elif page_choice == "📊 Stock Tracker":
                         else:
                             st.info("Institutional data not available.")
 
-                # --- TAB 5: EARNINGS & FUNDS ---
+                # --- TAB 5: FINANCIAL HEALTH (VISUAL CHARTS) ---
+                with tab_fhealth:
+                    st.subheader("📈 Financial Health — Trend Analysis")
+                    st.markdown("<p style='color: #8A929A; margin-top:-10px; margin-bottom:20px;'>Andamento storico dei principali indicatori fondamentali anno per anno.</p>", unsafe_allow_html=True)
+
+                    # --- Fetch 10+ Years Financial Data (Multi-Source) ---
+                    _FMP_API_KEY = "ZIDZlYJLFBKtr9HgMsCF79zuPv540wkn"
+
+                    # Source 1: Macrotrends (10-15 anni, scraping)
+                    mt_inc, mt_bal, mt_cash = fetch_macrotrends_financials(a_ticker, limit_years=10)
+                    # Source 2: FMP API (5 anni)
+                    fmp_inc, fmp_bal, fmp_cash = fetch_fmp_financials(a_ticker, _FMP_API_KEY)
+                    # Source 3: Yahoo Finance Extended (5-8 anni)
+                    yf_inc, yf_bal, yf_cash = fetch_financials_extended(a_ticker)
+
+                    # Combine: macrotrends primary -> FMP fills gaps -> yfinance fills remaining
+                    if not mt_inc.empty:
+                        fh_inc = _merge_financial_dfs(mt_inc, _merge_financial_dfs(fmp_inc, yf_inc))
+                        fh_bal = _merge_financial_dfs(mt_bal, _merge_financial_dfs(fmp_bal, yf_bal))
+                        fh_cash = _merge_financial_dfs(mt_cash, _merge_financial_dfs(fmp_cash, yf_cash))
+                        n_years = len(fh_inc.columns)
+                        st.caption(f"📡 Sorgente: **Multi-Source ({n_years} anni)**")
+                    elif not fmp_inc.empty:
+                        fh_inc = _merge_financial_dfs(fmp_inc, yf_inc)
+                        fh_bal = _merge_financial_dfs(fmp_bal, yf_bal)
+                        fh_cash = _merge_financial_dfs(fmp_cash, yf_cash)
+                        n_years = len(fh_inc.columns)
+                        st.caption(f"📡 Sorgente: **FMP + Yahoo Finance ({n_years} anni)**")
+                    elif yf_inc is not None and not yf_inc.empty:
+                        fh_inc, fh_bal, fh_cash = yf_inc, yf_bal, yf_cash
+                        n_years = len(fh_inc.columns)
+                        st.caption(f"📡 Sorgente: **Yahoo Finance ({n_years} anni)**")
+                    else:
+                        fh_inc, fh_bal, fh_cash = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+                        st.warning("⚠️ Nessuna sorgente dati disponibile.")
+
+                    # Helper: extract a row from a financial statement, sorted by year
+                    def _extract_annual_series(df, row_name):
+                        """Return a sorted Series (index=year, values=float) or None."""
+                        if df is None or df.empty:
+                            return None
+                        if row_name not in df.index:
+                            return None
+                        row = df.loc[row_name].dropna()
+                        row = pd.to_numeric(row, errors='coerce').dropna()
+                        if row.empty:
+                            return None
+                        # Convert column dates to year labels
+                        row.index = [c.year if hasattr(c, 'year') else str(c) for c in row.index]
+                        # Deduplicate by taking the most recent entry for each year
+                        row = row.groupby(level=0).last()
+                        return row.sort_index()
+
+                    # --- Shared chart layout template ---
+                    _chart_layout = dict(
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color='#e0e0e0', family='Inter, sans-serif'),
+                        margin=dict(l=20, r=20, t=40, b=40),
+                        height=380,
+                        xaxis=dict(gridcolor='rgba(255,255,255,0.06)', dtick=1),
+                        yaxis=dict(gridcolor='rgba(255,255,255,0.06)'),
+                        hovermode='x unified',
+                        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)
+                    )
+
+                    has_any_chart = False
+
+                    # ──── CHART 1 & 2: Revenue + Net Income ────
+                    revenue = _extract_annual_series(fh_inc, 'Total Revenue')
+                    net_income = _extract_annual_series(fh_inc, 'Net Income')
+
+                    ch_col1, ch_col2 = st.columns(2)
+
+                    with ch_col1:
+                        if revenue is not None and len(revenue) >= 2:
+                            has_any_chart = True
+                            fig_rev = go.Figure()
+                            colors_rev = ['#3b82f6' if v >= 0 else '#ef4444' for v in revenue.values]
+                            fig_rev.add_trace(go.Bar(
+                                x=[str(y) for y in revenue.index], y=revenue.values,
+                                marker_color=colors_rev, name='Revenue',
+                                text=[format_large_numbers(v) for v in revenue.values],
+                                textposition='outside', textfont=dict(size=11)
+                            ))
+                            fig_rev.update_layout(title='💵 Total Revenue', **_chart_layout)
+                            st.plotly_chart(fig_rev, use_container_width=True)
+                        else:
+                            st.info("Revenue data not available.")
+
+                    with ch_col2:
+                        if net_income is not None and len(net_income) >= 2:
+                            has_any_chart = True
+                            fig_ni = go.Figure()
+                            colors_ni = ['#22c55e' if v >= 0 else '#ef4444' for v in net_income.values]
+                            fig_ni.add_trace(go.Bar(
+                                x=[str(y) for y in net_income.index], y=net_income.values,
+                                marker_color=colors_ni, name='Net Income',
+                                text=[format_large_numbers(v) for v in net_income.values],
+                                textposition='outside', textfont=dict(size=11)
+                            ))
+                            fig_ni.update_layout(title='📊 Net Income', **_chart_layout)
+                            st.plotly_chart(fig_ni, use_container_width=True)
+                        else:
+                            st.info("Net Income data not available.")
+
+                    # ──── CHART 3 & 4: EPS + Free Cash Flow ────
+                    # EPS: derive from Net Income / shares outstanding (basic)
+                    basic_eps = _extract_annual_series(fh_inc, 'Basic EPS')
+                    diluted_eps = _extract_annual_series(fh_inc, 'Diluted EPS')
+                    eps_series = basic_eps if basic_eps is not None else diluted_eps
+
+                    fcf = _extract_annual_series(fh_cash, 'Free Cash Flow')
+
+                    ch_col3, ch_col4 = st.columns(2)
+
+                    with ch_col3:
+                        if eps_series is not None and len(eps_series) >= 2:
+                            has_any_chart = True
+                            fig_eps = go.Figure()
+                            colors_eps = ['#a78bfa' if v >= 0 else '#ef4444' for v in eps_series.values]
+                            fig_eps.add_trace(go.Bar(
+                                x=[str(y) for y in eps_series.index], y=eps_series.values,
+                                marker_color=colors_eps, name='EPS',
+                                text=[f"${v:.2f}" for v in eps_series.values],
+                                textposition='outside', textfont=dict(size=11)
+                            ))
+                            fig_eps.update_layout(title='💰 Earnings Per Share (EPS)', **_chart_layout)
+                            st.plotly_chart(fig_eps, use_container_width=True)
+                        else:
+                            st.info("EPS data not available.")
+
+                    with ch_col4:
+                        if fcf is not None and len(fcf) >= 2:
+                            has_any_chart = True
+                            fig_fcf = go.Figure()
+                            colors_fcf = ['#06b6d4' if v >= 0 else '#ef4444' for v in fcf.values]
+                            fig_fcf.add_trace(go.Bar(
+                                x=[str(y) for y in fcf.index], y=fcf.values,
+                                marker_color=colors_fcf, name='FCF',
+                                text=[format_large_numbers(v) for v in fcf.values],
+                                textposition='outside', textfont=dict(size=11)
+                            ))
+                            fig_fcf.update_layout(title='🏦 Free Cash Flow', **_chart_layout)
+                            st.plotly_chart(fig_fcf, use_container_width=True)
+                        else:
+                            st.info("Free Cash Flow data not available.")
+
+                    # ──── CHART 5 & 6: Debt vs Equity + Margins ────
+                    total_debt = _extract_annual_series(fh_bal, 'Total Debt')
+                    total_equity = _extract_annual_series(fh_bal, 'Stockholders Equity')
+                    if total_equity is None:
+                        total_equity = _extract_annual_series(fh_bal, 'Total Stockholders Equity')
+
+                    # Margins from income statement
+                    gross_profit = _extract_annual_series(fh_inc, 'Gross Profit')
+                    operating_income = _extract_annual_series(fh_inc, 'Operating Income')
+
+                    ch_col5, ch_col6 = st.columns(2)
+
+                    with ch_col5:
+                        if total_debt is not None and total_equity is not None:
+                            has_any_chart = True
+                            # Align on common years
+                            common_years = sorted(set(total_debt.index) & set(total_equity.index))
+                            if len(common_years) >= 2:
+                                fig_de = go.Figure()
+                                fig_de.add_trace(go.Bar(
+                                    x=[str(y) for y in common_years],
+                                    y=[total_debt[y] for y in common_years],
+                                    name='Total Debt',
+                                    marker_color='#ef4444',
+                                    text=[format_large_numbers(total_debt[y]) for y in common_years],
+                                    textposition='outside', textfont=dict(size=10)
+                                ))
+                                fig_de.add_trace(go.Bar(
+                                    x=[str(y) for y in common_years],
+                                    y=[total_equity[y] for y in common_years],
+                                    name='Equity',
+                                    marker_color='#22c55e',
+                                    text=[format_large_numbers(total_equity[y]) for y in common_years],
+                                    textposition='outside', textfont=dict(size=10)
+                                ))
+                                fig_de.update_layout(title='⚖️ Debt vs Equity', barmode='group', **_chart_layout)
+                                st.plotly_chart(fig_de, use_container_width=True)
+                            else:
+                                st.info("Not enough common years for Debt vs Equity chart.")
+                        else:
+                            st.info("Debt / Equity data not available.")
+
+                    with ch_col6:
+                        # Compute margins %
+                        if revenue is not None and len(revenue) >= 2:
+                            fig_margins = go.Figure()
+                            margin_plotted = False
+
+                            if gross_profit is not None:
+                                common = sorted(set(revenue.index) & set(gross_profit.index))
+                                if len(common) >= 2:
+                                    gm = [(gross_profit[y] / revenue[y]) * 100 if revenue[y] != 0 else 0 for y in common]
+                                    fig_margins.add_trace(go.Scatter(
+                                        x=[str(y) for y in common], y=gm,
+                                        name='Gross Margin %', mode='lines+markers',
+                                        line=dict(color='#3b82f6', width=2.5),
+                                        marker=dict(size=8)
+                                    ))
+                                    margin_plotted = True
+
+                            if operating_income is not None:
+                                common = sorted(set(revenue.index) & set(operating_income.index))
+                                if len(common) >= 2:
+                                    om = [(operating_income[y] / revenue[y]) * 100 if revenue[y] != 0 else 0 for y in common]
+                                    fig_margins.add_trace(go.Scatter(
+                                        x=[str(y) for y in common], y=om,
+                                        name='Operating Margin %', mode='lines+markers',
+                                        line=dict(color='#f59e0b', width=2.5),
+                                        marker=dict(size=8)
+                                    ))
+                                    margin_plotted = True
+
+                            if net_income is not None:
+                                common = sorted(set(revenue.index) & set(net_income.index))
+                                if len(common) >= 2:
+                                    nm = [(net_income[y] / revenue[y]) * 100 if revenue[y] != 0 else 0 for y in common]
+                                    fig_margins.add_trace(go.Scatter(
+                                        x=[str(y) for y in common], y=nm,
+                                        name='Net Margin %', mode='lines+markers',
+                                        line=dict(color='#22c55e', width=2.5),
+                                        marker=dict(size=8)
+                                    ))
+                                    margin_plotted = True
+
+                            if margin_plotted:
+                                has_any_chart = True
+                                fig_margins.update_layout(
+                                    title='📐 Profitability Margins (%)',
+                                    yaxis_title='Margin %',
+                                    **_chart_layout
+                                )
+                                st.plotly_chart(fig_margins, use_container_width=True)
+                            else:
+                                st.info("Margin data not available.")
+                        else:
+                            st.info("Revenue data insufficient for margin calculation.")
+
+                    # ──── CHART 7 (Full Width): EBITDA Trend ────
+                    ebitda = _extract_annual_series(fh_inc, 'EBITDA')
+                    if ebitda is not None and len(ebitda) >= 2:
+                        has_any_chart = True
+                        fig_ebitda = go.Figure()
+                        fig_ebitda.add_trace(go.Scatter(
+                            x=[str(y) for y in ebitda.index], y=ebitda.values,
+                            mode='lines+markers+text',
+                            line=dict(color='#f97316', width=3),
+                            marker=dict(size=10, color='#f97316', line=dict(width=2, color='#ffffff')),
+                            text=[format_large_numbers(v) for v in ebitda.values],
+                            textposition='top center', textfont=dict(size=11),
+                            fill='tozeroy', fillcolor='rgba(249, 115, 22, 0.08)',
+                            name='EBITDA'
+                        ))
+                        fig_ebitda.update_layout(title='🔥 EBITDA Trend', height=350, **{k: v for k, v in _chart_layout.items() if k != 'height'})
+                        st.plotly_chart(fig_ebitda, use_container_width=True)
+
+                    if not has_any_chart:
+                        st.warning("⚠️ Nessun dato fondamentale disponibile per questo ticker. Potrebbe trattarsi di un ETF o di un titolo con dati limitati.")
+
+                # --- TAB 6: EARNINGS & FUNDS ---
                 with tab_funds:
                     st.subheader("📅 Upcoming Earnings & Estimates")
                     earn_data = stock.earnings_dates
@@ -822,27 +2006,39 @@ elif page_choice == "📊 Stock Tracker":
                             with dcf_col2:
                                 terminal_growth = st.number_input("Tasso Crescita Terminale %", value=2.5) / 100
                             
-                            pv_fcf = sum([recent_fcf * (1 + fcf_growth_rate)**t / (1 + discount_rate)**t for t in range(1, 6)])
-                            fcf_year_5 = recent_fcf * (1 + fcf_growth_rate)**5
-                            tv = (fcf_year_5 * (1 + terminal_growth)) / (discount_rate - terminal_growth)
-                            pv_tv = tv / (1 + discount_rate)**5
-                            
-                            enterprise_value = pv_fcf + pv_tv
-                            total_debt = info.get('totalDebt', 0)
-                            total_cash = info.get('totalCash', 0)
-                            net_debt = total_debt - total_cash
-                            equity_value = enterprise_value - net_debt
-                            
-                            fair_value = equity_value / shares_out_dcf
-                            
-                            st.metric("Fair Value per Azione Stimato", f"${fair_value:,.2f}")
-                            margin_of_safety = ((fair_value - rt_price) / fair_value) if fair_value > 0 else 0
-                            st.metric("Margine di Sicurezza", f"{margin_of_safety*100:.2f}%")
-                            
-                            if margin_of_safety > 0:
-                                st.success("🟢 Il titolo sembra istituzionalmente **SOTTOVALUTATO** rispetto al Fair Value.")
+                            if discount_rate <= terminal_growth:
+                                st.error("⚠️ Errore Matematico: Il Tasso di Sconto (WACC) deve essere strettamente maggiore del Tasso Terminale per calcolare il Terminal Value.")
                             else:
-                                st.error("🔴 Il titolo sembra istituzionalmente **SOPRAVVALUTATO** rispetto al Fair Value.")
+                                if recent_fcf < 0:
+                                    st.warning("⚠️ L'azienda presenta un Free Cash Flow recente negativo. Il Fair Value risultante potrebbe essere negativo o inaffidabile, poiché il modello sconta perdite anziché profitti.")
+                                
+                                pv_fcf = sum([recent_fcf * (1 + fcf_growth_rate)**t / (1 + discount_rate)**t for t in range(1, 6)])
+                                fcf_year_5 = recent_fcf * (1 + fcf_growth_rate)**5
+                                tv = (fcf_year_5 * (1 + terminal_growth)) / (discount_rate - terminal_growth)
+                                pv_tv = tv / (1 + discount_rate)**5
+                                
+                                enterprise_value = pv_fcf + pv_tv
+                                total_debt = info.get('totalDebt') or 0
+                                total_cash = info.get('totalCash') or 0
+                                net_debt = total_debt - total_cash
+                                equity_value = enterprise_value - net_debt
+                                
+                                raw_fair_value = equity_value / shares_out_dcf
+                                fair_value = max(0, raw_fair_value)
+                                
+                                if raw_fair_value < 0:
+                                    st.info(f"Nota: Il valore teorico del capitale netto sarebbe negativo (${raw_fair_value:,.2f}), limitato a zero nel calcolo.")
+                                
+                                st.metric("Fair Value per Azione Stimato", f"${fair_value:,.2f}")
+                                margin_of_safety = ((fair_value - rt_price) / fair_value) if fair_value > 0 else 0
+                                st.metric("Margine di Sicurezza", f"{margin_of_safety*100:.2f}%")
+                                
+                                if fair_value == 0:
+                                    st.error("🔴 Il Fair Value teorico è zero (o inferiore) a causa di flussi di cassa negativi o debito eccessivo.")
+                                elif margin_of_safety > 0:
+                                    st.success("🟢 Il titolo sembra istituzionalmente **SOTTOVALUTATO** rispetto al Fair Value.")
+                                else:
+                                    st.error("🔴 Il titolo sembra istituzionalmente **SOPRAVVALUTATO** rispetto al Fair Value.")
                         else:
                             st.info("Dati di cassa non sufficienti per il modello DCF.")
                     except Exception as e:
@@ -931,7 +2127,59 @@ elif page_choice == "📁 My Portfolio":
         fig_pie.update_layout(margin=dict(t=30, b=0, l=0, r=0))
         st.plotly_chart(fig_pie, use_container_width=True)
 
+        # --- CORRELATION MATRIX ---
+        st.divider()
+        st.subheader("🔗 Correlation Matrix")
+        st.write("Correlazioni tra i rendimenti giornalieri dei tuoi titoli (ultimi 12 mesi). Valori vicini a **1.0** indicano asset che si muovono insieme — poca diversificazione reale.")
         
+        unique_portfolio_tickers = list(set(tickers))
+        if len(unique_portfolio_tickers) >= 2:
+            try:
+                corr_data = yf.download(unique_portfolio_tickers, period="1y", progress=False)['Close']
+                if isinstance(corr_data, pd.Series):
+                    st.info("Aggiungi almeno 2 titoli diversi per la matrice di correlazione.")
+                elif not corr_data.empty:
+                    corr_returns = corr_data.pct_change().dropna()
+                    corr_matrix = corr_returns.corr()
+                    
+                    fig_corr = px.imshow(
+                        corr_matrix,
+                        text_auto='.2f',
+                        color_continuous_scale=[
+                            [0.0, '#1a237e'], [0.25, '#42a5f5'],
+                            [0.5, '#e0e0e0'],
+                            [0.75, '#ef5350'], [1.0, '#b71c1c']
+                        ],
+                        aspect='auto',
+                        zmin=-1, zmax=1
+                    )
+                    fig_corr.update_layout(
+                        margin=dict(t=30, b=0, l=0, r=0),
+                        height=max(350, len(corr_matrix) * 50),
+                        coloraxis_colorbar=dict(title="ρ", thickness=15)
+                    )
+                    st.plotly_chart(fig_corr, use_container_width=True)
+                    
+                    # Highlight highly correlated pairs
+                    high_corr_pairs = []
+                    for i in range(len(corr_matrix.columns)):
+                        for j in range(i+1, len(corr_matrix.columns)):
+                            val = corr_matrix.iloc[i, j]
+                            if abs(val) >= 0.75:
+                                high_corr_pairs.append((corr_matrix.columns[i], corr_matrix.columns[j], val))
+                    
+                    if high_corr_pairs:
+                        st.warning("⚠️ **Coppie ad alta correlazione (|ρ| ≥ 0.75):**")
+                        for t1, t2, rho in sorted(high_corr_pairs, key=lambda x: abs(x[2]), reverse=True):
+                            emoji = "🔴" if rho > 0 else "🔵"
+                            st.markdown(f"{emoji} **{t1}** ↔ **{t2}**: ρ = {rho:.3f}")
+                    else:
+                        st.success("✅ Buona diversificazione! Nessuna coppia con correlazione superiore a ±0.75.")
+            except Exception as e:
+                st.error(f"Errore nel calcolo delle correlazioni: {e}")
+        else:
+            st.info("Aggiungi almeno 2 titoli al portafoglio per visualizzare la matrice di correlazione.")
+
         st.divider()
         st.subheader("🎯 Frontiera Efficiente di Markowitz")
         st.write("Calcolo dei pesi ottimali per massimizzare lo Sharpe Ratio (Maximum Risk-Adjusted Return).")
@@ -971,6 +2219,42 @@ elif page_choice == "📁 My Portfolio":
                                 c1.dataframe(opt_df, hide_index=True)
                                 c2.metric("Sharpe Ratio Atteso", f"{shorp:.2f}")
                                 c2.metric("Rendimento Annuo Atteso", f"{p_ret*100:.2f}%")
+                                
+                                st.write("")
+                                st.subheader("🌌 3D Risk/Return Constellation")
+                                
+                                # Prep 3D scatter data
+                                asset_vols = ret_df.std() * np.sqrt(252)
+                                asset_rets = mean_ret
+                                opt_weights_pct = (opt_weights * 100).round(2)
+                                
+                                df_3d = pd.DataFrame({
+                                    "Ticker": active_tickers,
+                                    "Volatility (Risk) %": asset_vols * 100,
+                                    "Expected Return %": asset_rets * 100,
+                                    "Optimal Weight %": opt_weights_pct
+                                })
+                                
+                                fig_3d = px.scatter_3d(
+                                    df_3d, 
+                                    x='Volatility (Risk) %', 
+                                    y='Expected Return %', 
+                                    z='Optimal Weight %',
+                                    color='Optimal Weight %',
+                                    size=np.maximum(df_3d['Optimal Weight %'], 1),
+                                    hover_name="Ticker",
+                                    color_continuous_scale=px.colors.sequential.Viridis,
+                                    opacity=0.8
+                                )
+                                fig_3d.update_layout(
+                                    margin=dict(l=0, r=0, b=0, t=0), height=500,
+                                    scene=dict(
+                                        xaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(255,255,255,0.1)"),
+                                        yaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(255,255,255,0.1)"),
+                                        zaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(255,255,255,0.1)")
+                                    )
+                                )
+                                st.plotly_chart(fig_3d, use_container_width=True)
                     except Exception as e:
                         st.error("Errore nell'ottimizzazione: " + str(e))
         else:
@@ -1000,6 +2284,70 @@ elif page_choice == "📁 My Portfolio":
 elif page_choice == "📰 Financial News":
     st.title("📰 Financial News Feed")
     st.write("Stay up-to-date with the latest market news and **AI-powered sentiment analysis**.")
+    st.divider()
+
+    # --- AI PORTFOLIO TREEMAP ---
+    if st.session_state.get('portfolio'):
+        with st.expander("🌌 Genera S&P AI Sentiment Treemap (Sperimentale)", expanded=False):
+            st.write("Crea una mappa di calore del tuo portafoglio analizzando il sentiment generale di mercato tramite l'AI di Gemma.")
+            if st.button("🚀 Esegui Analisi Treemap"):
+                with st.spinner(f"Estrazione news e calcolo inferenziale Sentiment in corso... | '{random.choice(WALL_STREET_QUOTES)}'"):
+                    tickers = [item['ticker'] for item in st.session_state['portfolio']]
+                    prices_dict = get_batch_prices(list(set(tickers))) if tickers else {}
+                    
+                    tree_data = []
+                    for item in st.session_state['portfolio']:
+                        tk = item['ticker']
+                        shares = item['shares']
+                        
+                        current_price = prices_dict.get(tk, 1.0)
+                        if isinstance(current_price, pd.Series): current_price = current_price.iloc[0]
+                        valore_monetario = shares * current_price
+                        
+                        tk_news = fetch_news(tk)
+                        sentiment_score = 0
+                        valid_news = 0
+                        
+                        if tk_news:
+                            for n in tk_news[:8]: # Ampliato a 8 notizie come richiesto
+                                # Gestizione formati news misti
+                                title = ""
+                                if 'content' in n: title = n['content'].get('title', '')
+                                else: title = n.get('title', '')
+                                
+                                if title:
+                                    lbl = get_sentiment(title)
+                                    if "Positive" in lbl: sentiment_score += 1
+                                    elif "Negative" in lbl: sentiment_score -= 1
+                                    valid_news += 1
+                        
+                        avg_score = (sentiment_score / valid_news) if valid_news > 0 else 0
+                        
+                        if avg_score > 0.3: human_lbl = "🟢 Rialzista"
+                        elif avg_score < -0.3: human_lbl = "🔴 Ribassista"
+                        else: human_lbl = "⚪ Incerto/Neutro"
+                        
+                        tree_data.append({"Ticker": tk, "Valore ($)": max(valore_monetario, 0.01), "AI Score": avg_score, "Giudizio": human_lbl})
+                    
+                    df_tree = pd.DataFrame(tree_data)
+                    if not df_tree.empty:
+                        df_tree["Portafoglio"] = "Mio Portafoglio" # Crea il Nodo Root genitore per Plotly
+                        fig_tree = px.treemap(
+                            df_tree, 
+                            path=['Portafoglio', 'Ticker'], 
+                            values='Valore ($)', 
+                            color='AI Score',
+                            hover_name='Ticker',
+                            hover_data={"AI Score": False, "Giudizio": True, "Valore ($)": ':$,.2f'},
+                            color_continuous_scale=[
+                                [0.0, '#E74C3C'], [0.35, '#E74C3C'],  # Da -1.0 a -0.3 (Rosso)
+                                [0.35, '#2E2E2E'], [0.65, '#2E2E2E'], # Da -0.3 a 0.3 (Grigio Scuro/Neutro)
+                                [0.65, '#27AE60'], [1.0, '#27AE60']   # Da 0.3 a 1.0 (Verde)
+                            ],
+                            range_color=[-1, 1],
+                            title="AI Portfolio Sentiment Heatmap (Proporzionata per Capitale Investito)"
+                        )
+                        st.plotly_chart(fig_tree, use_container_width=True)
     st.divider()
     
     col_news, _ = st.columns([1, 2])
@@ -1059,17 +2407,36 @@ elif page_choice == "📰 Financial News":
                 st.warning(f"No recent news found for ticker {ticker_news}.")
 
     st.divider()
-    st.subheader("💡 Chiedi all'Assistente AI Sulle Notizie")
-    st.write("Fai una domanda usando solo i contenuti freschi estratti qui sopra (RAG Locale).")
-    user_q = st.text_input("La tua domanda (Es. 'Perché il titolo è sceso oggi?')")
-    if user_q and st.button("Consulta AI", key="btn_rag"):
-        if st.session_state.get('news_contexts'):
-            with st.spinner("Riflessione in corso..."):
-                ctx_str = "\n".join(st.session_state['news_contexts'][:15])
-                ans = ask_financial_chatbot(user_q, ctx_str)
-                st.success(ans)
-        else:
-            st.warning("Cerca prima le notizie per caricare il contesto dell'AI.")
+    st.subheader("💡 Terminale AI Conversazionale (RAG sulle Notizie)")
+    st.write("Interroga Gemma simulando l'esperienza di un terminale avanzato usando le notizie caricate qui sopra come base di conoscenza.")
+    
+    if 'chat_history' not in st.session_state:
+        st.session_state['chat_history'] = []
+
+    # Rendering dei messaggi passati (se stiamo navigando tra i tab, si mantengono)
+    for msg in st.session_state['chat_history']:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # Elemento nativo nativo Chat Input di Streamlit
+    if prompt := st.chat_input("Es. 'Perché il titolo è crollato?' oppure 'Fai un riassunto sulle acquisizioni recenti...'"):
+        # Salva la logica utente
+        st.session_state['chat_history'].append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # Risposta IA
+        with st.chat_message("assistant"):
+            if st.session_state.get('news_contexts'):
+                with st.spinner(f"Riflessione quantitativa profonda... | '{random.choice(WALL_STREET_QUOTES)}'"):
+                    ctx_str = "\n".join(st.session_state['news_contexts'][:15])
+                    ans = ask_financial_chatbot(prompt, ctx_str)
+                    st.markdown(ans)
+                    st.session_state['chat_history'].append({"role": "assistant", "content": ans})
+            else:
+                warning_msg = "Attenzione: Cerca prima le notizie del titolo usando la barra di ricerca in alto, altrimenti Gemma non avrà alcun contesto su cui basarsi."
+                st.warning(warning_msg)
+                st.session_state['chat_history'].append({"role": "assistant", "content": warning_msg})
 
 # ==========================================
 # ==========================================
@@ -1077,10 +2444,10 @@ elif page_choice == "📰 Financial News":
 # ==========================================
 elif page_choice == "🌍 Macro & Market":
     st.title("🌍 Macro & Market Pulse")
-    st.write("Visione globale istituzionale per il contesto di mercato.")
+    st.markdown(f"<p style='color: #8A929A; font-style: italic; font-size: 18px;'>« Governments don't rule the world, Goldman Sachs rules the world. »</p>", unsafe_allow_html=True)
     st.divider()
     
-    with st.spinner("Acquisizione dati macroeconomici..."):
+    with st.spinner(f"Acquisizione dati macroeconomici... | '{random.choice(WALL_STREET_QUOTES)}'"):
         macro_tickers = {
             "S&P 500 (Trend US)": "^GSPC",
             "Nasdaq 100": "^NDX",
@@ -1140,8 +2507,9 @@ elif page_choice == "🔍 Stock Screener":
     
     if st.button("🚀 Esegui Screen", type="primary"):
         if sp500_tickers:
-            with st.spinner(f"Scansione parallela di {len(sp500_tickers)} titoli dell'S&P 500 in corso (richiederà 15-20 secondi)..."):
+            with st.spinner(f"Scansione parallela di {len(sp500_tickers)} titoli S&P 500 (15-20 sec)... | '{random.choice(WALL_STREET_QUOTES)}'"):
                 
+
                 def evaluate_ticker(tkr):
                     try:
                         tk_info = fetch_stock_info(tkr)
@@ -1174,6 +2542,46 @@ elif page_choice == "🔍 Stock Screener":
                     df_screen = pd.DataFrame(screener_res).sort_values(by="Div Yield %", ascending=False)
                     st.success(f"Trovate {len(screener_res)} aziende che rispettano i tuoi parametri istituzionali.")
                     st.dataframe(df_screen, use_container_width=True, hide_index=True)
+                    
+                    if len(df_screen) >= 4:
+                        st.subheader("🧲 K-Means AI Clustering (S&P 500)")
+                        st.write("Aggreghiamo matematicamente queste aziende in cluster spaziali in base al loro DNA finanziario (P/E, Dividendo, Grandezza).")
+                        with st.spinner("Addestramento modello ML K-Means in puro NumPy..."):
+                            # Preparazione e normalizzazione dati
+                            data = df_screen[['P/E', 'Div Yield %', 'Market Cap (B)']].values
+                            # Prevenzione division by zero sui dev.std
+                            std_devs = np.std(data, axis=0)
+                            std_devs[std_devs == 0] = 1 
+                            data_norm = (data - np.mean(data, axis=0)) / std_devs
+                            
+                            k = min(4, len(df_screen))
+                            np.random.seed(42)
+                            centroids = data_norm[np.random.choice(data_norm.shape[0], k, replace=False)]
+                            
+                            for _ in range(100): # Hard cap a 100 iterazioni
+                                distances = np.sqrt(((data_norm - centroids[:, np.newaxis])**2).sum(axis=2))
+                                labels = np.argmin(distances, axis=0)
+                                new_centroids = np.array([data_norm[labels == i].mean(axis=0) if len(data_norm[labels == i])>0 else centroids[i] for i in range(k)])
+                                if np.allclose(centroids, new_centroids): break
+                                centroids = new_centroids
+                                
+                            df_screen['Cluster ID'] = [f"Ammasso {L+1}" for L in labels]
+                            
+                            fig_clust = px.scatter_3d(
+                                df_screen, x='P/E', y='Div Yield %', z='Market Cap (B)',
+                                color='Cluster ID', hover_name='Ticker', hover_data=['Azienda'],
+                                title="Costellazione S&P 500 Segmentata",
+                                color_discrete_sequence=px.colors.qualitative.Bold
+                            )
+                            fig_clust.update_layout(
+                                margin=dict(l=0, r=0, b=0, t=30), height=600,
+                                scene=dict(
+                                    xaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(255,255,255,0.1)"),
+                                    yaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(255,255,255,0.1)"),
+                                    zaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(255,255,255,0.1)")
+                                )
+                            )
+                            st.plotly_chart(fig_clust, use_container_width=True)
                 else:
                     st.warning("Nessuna azienda rispetta queste query severe!")
 
@@ -1181,6 +2589,83 @@ elif page_choice == "🔍 Stock Screener":
 # PAGE 7: SUPER INVESTORS
 # ==========================================
 elif page_choice == "👑 Super Investors":
+    portfolio_details = {
+        "Warren Buffett": [
+            {"Ticker": "AAPL", "Azienda": "Apple Inc.", "Settore": "Technology", "Allocazione %": 22.60, "Quote": "227.9M", "Valore": "$61.9B"},
+            {"Ticker": "AXP", "Azienda": "American Express", "Settore": "Financial", "Allocazione %": 20.46, "Quote": "151.6M", "Valore": "$56.0B"},
+            {"Ticker": "BAC", "Azienda": "Bank of America", "Settore": "Financial", "Allocazione %": 10.38, "Quote": "517.2M", "Valore": "$28.4B"},
+            {"Ticker": "KO", "Azienda": "Coca-Cola", "Settore": "Consumer", "Allocazione %": 10.20, "Quote": "400.0M", "Valore": "$27.9B"},
+            {"Ticker": "CVX", "Azienda": "Chevron", "Settore": "Energy", "Allocazione %": 7.24, "Quote": "130.1M", "Valore": "$19.8B"},
+            {"Ticker": "MCO", "Azienda": "Moody's Corp.", "Settore": "Financial", "Allocazione %": 4.60, "Quote": "24.6M", "Valore": "$12.6B"},
+            {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 24.52, "Quote": "-", "Valore": "$67.2B"},
+        ],
+        "Michael Burry": [
+            {"Ticker": "MOH", "Azienda": "Molina Healthcare Inc.", "Settore": "Health", "Allocazione %": 43.49, "Quote": "125K", "Valore": "$23.9M"},
+            {"Ticker": "LULU", "Azienda": "Lululemon Athletica", "Settore": "Consumer", "Allocazione %": 32.35, "Quote": "100K", "Valore": "$17.7M"},
+            {"Ticker": "SLM", "Azienda": "SLM Corp.", "Settore": "Financial", "Allocazione %": 24.16, "Quote": "480K", "Valore": "$13.2M"},
+        ],
+        "Cathie Wood": [
+            {"Ticker": "TSLA", "Azienda": "Tesla", "Settore": "Auto", "Allocazione %": 11.20, "Quote": "3.8M", "Valore": "$680M"},
+            {"Ticker": "COIN", "Azienda": "Coinbase", "Settore": "Crypto", "Allocazione %": 8.50, "Quote": "4.2M", "Valore": "$590M"},
+            {"Ticker": "ROKU", "Azienda": "Roku", "Settore": "Communication", "Allocazione %": 8.00, "Quote": "9.1M", "Valore": "$520M"},
+            {"Ticker": "SQ", "Azienda": "Block", "Settore": "Financial", "Allocazione %": 7.10, "Quote": "8.5M", "Valore": "$500M"},
+            {"Ticker": "CRSP", "Azienda": "CRISPR Therapeutics", "Settore": "Health", "Allocazione %": 5.60, "Quote": "6.3M", "Valore": "$380M"},
+            {"Ticker": "PLTR", "Azienda": "Palantir", "Settore": "Software", "Allocazione %": 5.40, "Quote": "15.4M", "Valore": "$350M"},
+            {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 54.20, "Quote": "-", "Valore": "$4.1B"},
+        ],
+        "Bill Ackman": [
+            {"Ticker": "BN", "Azienda": "Brookfield Corp.", "Settore": "Financial", "Allocazione %": 18.15, "Quote": "61.4M", "Valore": "$2.8B"},
+            {"Ticker": "UBER", "Azienda": "Uber Technologies", "Settore": "Tech", "Allocazione %": 15.90, "Quote": "30.2M", "Valore": "$2.4B"},
+            {"Ticker": "AMZN", "Azienda": "Amazon.com Inc.", "Settore": "E-Commerce", "Allocazione %": 14.28, "Quote": "9.6M", "Valore": "$2.2B"},
+            {"Ticker": "GOOG", "Azienda": "Alphabet Inc.", "Settore": "Communication", "Allocazione %": 12.46, "Quote": "6.1M", "Valore": "$1.9B"},
+            {"Ticker": "META", "Azienda": "Meta Platforms", "Settore": "Communication", "Allocazione %": 11.37, "Quote": "2.6M", "Valore": "$1.7B"},
+            {"Ticker": "QSR", "Azienda": "Restaurant Brands", "Settore": "Consumer", "Allocazione %": 10.05, "Quote": "22.8M", "Valore": "$1.5B"},
+            {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 17.79, "Quote": "-", "Valore": "$2.9B"},
+        ],
+        "David Tepper": [
+            {"Ticker": "BABA", "Azienda": "Alibaba Group", "Settore": "E-Commerce", "Allocazione %": 10.99, "Quote": "5.1M", "Valore": "$753M"},
+            {"Ticker": "GOOG", "Azienda": "Alphabet Inc.", "Settore": "Communication", "Allocazione %": 8.18, "Quote": "1.7M", "Valore": "$560M"},
+            {"Ticker": "AMZN", "Azienda": "Amazon.com Inc.", "Settore": "E-Commerce", "Allocazione %": 7.34, "Quote": "2.1M", "Valore": "$503M"},
+            {"Ticker": "MU", "Azienda": "Micron Technology", "Settore": "Technology", "Allocazione %": 6.25, "Quote": "1.5M", "Valore": "$428M"},
+            {"Ticker": "META", "Azienda": "Meta Platforms", "Settore": "Communication", "Allocazione %": 5.78, "Quote": "600K", "Valore": "$396M"},
+            {"Ticker": "TSM", "Azienda": "Taiwan Semi", "Settore": "Technology", "Allocazione %": 5.01, "Quote": "1.1M", "Valore": "$343M"},
+            {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 56.45, "Quote": "-", "Valore": "$3.8B"},
+        ],
+        "Ray Dalio": [
+            {"Ticker": "IVV", "Azienda": "iShares Core S&P 500", "Settore": "ETF", "Allocazione %": 20.30, "Quote": "18.4M", "Valore": "$4.1B"},
+            {"Ticker": "IEMG", "Azienda": "iShares Core MSCI EM", "Settore": "ETF", "Allocazione %": 10.50, "Quote": "25.1M", "Valore": "$2.1B"},
+            {"Ticker": "SPY", "Azienda": "SPDR S&P 500 ETF", "Settore": "ETF", "Allocazione %": 5.10, "Quote": "3.5M", "Valore": "$1.8B"},
+            {"Ticker": "PG", "Azienda": "Procter & Gamble", "Settore": "Consumer", "Allocazione %": 4.20, "Quote": "5.6M", "Valore": "$800M"},
+            {"Ticker": "JNJ", "Azienda": "Johnson & Johnson", "Settore": "Health", "Allocazione %": 3.50, "Quote": "4.2M", "Valore": "$650M"},
+            {"Ticker": "PEP", "Azienda": "PepsiCo", "Settore": "Consumer", "Allocazione %": 3.10, "Quote": "3.1M", "Valore": "$510M"},
+            {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 53.30, "Quote": "-", "Valore": "$10.4B"},
+        ],
+        "Stanley Druckenmiller": [
+            {"Ticker": "NTRA", "Azienda": "Natera, Inc.", "Settore": "Health", "Allocazione %": 24.50, "Quote": "8.1M", "Valore": "$1.1B"},
+            {"Ticker": "XLF", "Azienda": "Financial Select SPDR", "Settore": "ETF", "Allocazione %": 15.20, "Quote": "12.4M", "Valore": "$680M"},
+            {"Ticker": "INSM", "Azienda": "Insmed Incorporated", "Settore": "Health", "Allocazione %": 10.10, "Quote": "9.5M", "Valore": "$452M"},
+            {"Ticker": "RSP", "Azienda": "Invesco S&P 500 Equal", "Settore": "ETF", "Allocazione %": 8.00, "Quote": "2.2M", "Valore": "$359M"},
+            {"Ticker": "TEVA", "Azienda": "Teva Pharmaceutical", "Settore": "Health", "Allocazione %": 5.10, "Quote": "11.1M", "Valore": "$229M"},
+            {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 37.10, "Quote": "-", "Valore": "$1.6B"},
+        ],
+        "Ken Griffin": [
+            {"Ticker": "SPY", "Azienda": "SPDR S&P 500 ETF", "Settore": "ETF", "Allocazione %": 12.50, "Quote": "35.1M", "Valore": "$12.0B"},
+            {"Ticker": "QQQ", "Azienda": "Invesco QQQ Trust", "Settore": "ETF", "Allocazione %": 10.20, "Quote": "25.2M", "Valore": "$9.8B"},
+            {"Ticker": "NVDA", "Azienda": "NVIDIA Corp.", "Settore": "Technology", "Allocazione %": 6.80, "Quote": "8.5M", "Valore": "$6.5B"},
+            {"Ticker": "AAPL", "Azienda": "Apple Inc.", "Settore": "Technology", "Allocazione %": 5.10, "Quote": "22.3M", "Valore": "$4.9B"},
+            {"Ticker": "TSLA", "Azienda": "Tesla", "Settore": "Auto", "Allocazione %": 4.20, "Quote": "15.1M", "Valore": "$4.0B"},
+            {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 61.20, "Quote": "-", "Valore": "$59.2B"},
+        ],
+        "Carl Icahn": [
+            {"Ticker": "IEP", "Azienda": "Icahn Enterprises", "Settore": "Conglomerate", "Allocazione %": 60.50, "Quote": "298M", "Valore": "$7.3B"},
+            {"Ticker": "OXY", "Azienda": "Occidental Petroleum", "Settore": "Energy", "Allocazione %": 15.20, "Quote": "35.6M", "Valore": "$1.8B"},
+            {"Ticker": "CVI", "Azienda": "CVR Energy", "Settore": "Energy", "Allocazione %": 10.10, "Quote": "31.2M", "Valore": "$1.2B"},
+            {"Ticker": "IFF", "Azienda": "Intl Flavors", "Settore": "Materials", "Allocazione %": 5.50, "Quote": "7.5M", "Valore": "$665M"},
+            {"Ticker": "SWX", "Azienda": "Southwest Gas", "Settore": "Utilities", "Allocazione %": 3.20, "Quote": "5.1M", "Valore": "$387M"},
+            {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 5.50, "Quote": "-", "Valore": "$665M"},
+        ]
+    }
+
     if 'active_investor' not in st.session_state:
         st.session_state['active_investor'] = None
 
@@ -1224,83 +2709,6 @@ elif page_choice == "👑 Super Investors":
             st.metric(label="📊 Asset Under Management (13F)", value=aum_map[inv_name])
             
         st.divider()
-        
-        portfolio_details = {
-            "Warren Buffett": [
-                {"Ticker": "AAPL", "Azienda": "Apple Inc.", "Settore": "Technology", "Allocazione %": 22.60, "Quote": "227.9M", "Valore": "$61.9B"},
-                {"Ticker": "AXP", "Azienda": "American Express", "Settore": "Financial", "Allocazione %": 20.46, "Quote": "151.6M", "Valore": "$56.0B"},
-                {"Ticker": "BAC", "Azienda": "Bank of America", "Settore": "Financial", "Allocazione %": 10.38, "Quote": "517.2M", "Valore": "$28.4B"},
-                {"Ticker": "KO", "Azienda": "Coca-Cola", "Settore": "Consumer", "Allocazione %": 10.20, "Quote": "400.0M", "Valore": "$27.9B"},
-                {"Ticker": "CVX", "Azienda": "Chevron", "Settore": "Energy", "Allocazione %": 7.24, "Quote": "130.1M", "Valore": "$19.8B"},
-                {"Ticker": "MCO", "Azienda": "Moody's Corp.", "Settore": "Financial", "Allocazione %": 4.60, "Quote": "24.6M", "Valore": "$12.6B"},
-                {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 24.52, "Quote": "-", "Valore": "$67.2B"},
-            ],
-            "Michael Burry": [
-                {"Ticker": "MOH", "Azienda": "Molina Healthcare Inc.", "Settore": "Health", "Allocazione %": 43.49, "Quote": "125K", "Valore": "$23.9M"},
-                {"Ticker": "LULU", "Azienda": "Lululemon Athletica", "Settore": "Consumer", "Allocazione %": 32.35, "Quote": "100K", "Valore": "$17.7M"},
-                {"Ticker": "SLM", "Azienda": "SLM Corp.", "Settore": "Financial", "Allocazione %": 24.16, "Quote": "480K", "Valore": "$13.2M"},
-            ],
-            "Cathie Wood": [
-                {"Ticker": "TSLA", "Azienda": "Tesla", "Settore": "Auto", "Allocazione %": 11.20, "Quote": "3.8M", "Valore": "$680M"},
-                {"Ticker": "COIN", "Azienda": "Coinbase", "Settore": "Crypto", "Allocazione %": 8.50, "Quote": "4.2M", "Valore": "$590M"},
-                {"Ticker": "ROKU", "Azienda": "Roku", "Settore": "Communication", "Allocazione %": 8.00, "Quote": "9.1M", "Valore": "$520M"},
-                {"Ticker": "SQ", "Azienda": "Block", "Settore": "Financial", "Allocazione %": 7.10, "Quote": "8.5M", "Valore": "$500M"},
-                {"Ticker": "CRSP", "Azienda": "CRISPR Therapeutics", "Settore": "Health", "Allocazione %": 5.60, "Quote": "6.3M", "Valore": "$380M"},
-                {"Ticker": "PLTR", "Azienda": "Palantir", "Settore": "Software", "Allocazione %": 5.40, "Quote": "15.4M", "Valore": "$350M"},
-                {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 54.20, "Quote": "-", "Valore": "$4.1B"},
-            ],
-            "Bill Ackman": [
-                {"Ticker": "BN", "Azienda": "Brookfield Corp.", "Settore": "Financial", "Allocazione %": 18.15, "Quote": "61.4M", "Valore": "$2.8B"},
-                {"Ticker": "UBER", "Azienda": "Uber Technologies", "Settore": "Tech", "Allocazione %": 15.90, "Quote": "30.2M", "Valore": "$2.4B"},
-                {"Ticker": "AMZN", "Azienda": "Amazon.com Inc.", "Settore": "E-Commerce", "Allocazione %": 14.28, "Quote": "9.6M", "Valore": "$2.2B"},
-                {"Ticker": "GOOG", "Azienda": "Alphabet Inc.", "Settore": "Communication", "Allocazione %": 12.46, "Quote": "6.1M", "Valore": "$1.9B"},
-                {"Ticker": "META", "Azienda": "Meta Platforms", "Settore": "Communication", "Allocazione %": 11.37, "Quote": "2.6M", "Valore": "$1.7B"},
-                {"Ticker": "QSR", "Azienda": "Restaurant Brands", "Settore": "Consumer", "Allocazione %": 10.05, "Quote": "22.8M", "Valore": "$1.5B"},
-                {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 17.79, "Quote": "-", "Valore": "$2.9B"},
-            ],
-            "David Tepper": [
-                {"Ticker": "BABA", "Azienda": "Alibaba Group", "Settore": "E-Commerce", "Allocazione %": 10.99, "Quote": "5.1M", "Valore": "$753M"},
-                {"Ticker": "GOOG", "Azienda": "Alphabet Inc.", "Settore": "Communication", "Allocazione %": 8.18, "Quote": "1.7M", "Valore": "$560M"},
-                {"Ticker": "AMZN", "Azienda": "Amazon.com Inc.", "Settore": "E-Commerce", "Allocazione %": 7.34, "Quote": "2.1M", "Valore": "$503M"},
-                {"Ticker": "MU", "Azienda": "Micron Technology", "Settore": "Technology", "Allocazione %": 6.25, "Quote": "1.5M", "Valore": "$428M"},
-                {"Ticker": "META", "Azienda": "Meta Platforms", "Settore": "Communication", "Allocazione %": 5.78, "Quote": "600K", "Valore": "$396M"},
-                {"Ticker": "TSM", "Azienda": "Taiwan Semi", "Settore": "Technology", "Allocazione %": 5.01, "Quote": "1.1M", "Valore": "$343M"},
-                {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 56.45, "Quote": "-", "Valore": "$3.8B"},
-            ],
-            "Ray Dalio": [
-                {"Ticker": "IVV", "Azienda": "iShares Core S&P 500", "Settore": "ETF", "Allocazione %": 20.30, "Quote": "18.4M", "Valore": "$4.1B"},
-                {"Ticker": "IEMG", "Azienda": "iShares Core MSCI EM", "Settore": "ETF", "Allocazione %": 10.50, "Quote": "25.1M", "Valore": "$2.1B"},
-                {"Ticker": "SPY", "Azienda": "SPDR S&P 500 ETF", "Settore": "ETF", "Allocazione %": 5.10, "Quote": "3.5M", "Valore": "$1.8B"},
-                {"Ticker": "PG", "Azienda": "Procter & Gamble", "Settore": "Consumer", "Allocazione %": 4.20, "Quote": "5.6M", "Valore": "$800M"},
-                {"Ticker": "JNJ", "Azienda": "Johnson & Johnson", "Settore": "Health", "Allocazione %": 3.50, "Quote": "4.2M", "Valore": "$650M"},
-                {"Ticker": "PEP", "Azienda": "PepsiCo", "Settore": "Consumer", "Allocazione %": 3.10, "Quote": "3.1M", "Valore": "$510M"},
-                {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 53.30, "Quote": "-", "Valore": "$10.4B"},
-            ],
-            "Stanley Druckenmiller": [
-                {"Ticker": "NTRA", "Azienda": "Natera, Inc.", "Settore": "Health", "Allocazione %": 24.50, "Quote": "8.1M", "Valore": "$1.1B"},
-                {"Ticker": "XLF", "Azienda": "Financial Select SPDR", "Settore": "ETF", "Allocazione %": 15.20, "Quote": "12.4M", "Valore": "$680M"},
-                {"Ticker": "INSM", "Azienda": "Insmed Incorporated", "Settore": "Health", "Allocazione %": 10.10, "Quote": "9.5M", "Valore": "$452M"},
-                {"Ticker": "RSP", "Azienda": "Invesco S&P 500 Equal", "Settore": "ETF", "Allocazione %": 8.00, "Quote": "2.2M", "Valore": "$359M"},
-                {"Ticker": "TEVA", "Azienda": "Teva Pharmaceutical", "Settore": "Health", "Allocazione %": 5.10, "Quote": "11.1M", "Valore": "$229M"},
-                {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 37.10, "Quote": "-", "Valore": "$1.6B"},
-            ],
-            "Ken Griffin": [
-                {"Ticker": "SPY", "Azienda": "SPDR S&P 500 ETF", "Settore": "ETF", "Allocazione %": 12.50, "Quote": "35.1M", "Valore": "$12.0B"},
-                {"Ticker": "QQQ", "Azienda": "Invesco QQQ Trust", "Settore": "ETF", "Allocazione %": 10.20, "Quote": "25.2M", "Valore": "$9.8B"},
-                {"Ticker": "NVDA", "Azienda": "NVIDIA Corp.", "Settore": "Technology", "Allocazione %": 6.80, "Quote": "8.5M", "Valore": "$6.5B"},
-                {"Ticker": "AAPL", "Azienda": "Apple Inc.", "Settore": "Technology", "Allocazione %": 5.10, "Quote": "22.3M", "Valore": "$4.9B"},
-                {"Ticker": "TSLA", "Azienda": "Tesla", "Settore": "Auto", "Allocazione %": 4.20, "Quote": "15.1M", "Valore": "$4.0B"},
-                {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 61.20, "Quote": "-", "Valore": "$59.2B"},
-            ],
-            "Carl Icahn": [
-                {"Ticker": "IEP", "Azienda": "Icahn Enterprises", "Settore": "Conglomerate", "Allocazione %": 60.50, "Quote": "298M", "Valore": "$7.3B"},
-                {"Ticker": "OXY", "Azienda": "Occidental Petroleum", "Settore": "Energy", "Allocazione %": 15.20, "Quote": "35.6M", "Valore": "$1.8B"},
-                {"Ticker": "CVI", "Azienda": "CVR Energy", "Settore": "Energy", "Allocazione %": 10.10, "Quote": "31.2M", "Valore": "$1.2B"},
-                {"Ticker": "IFF", "Azienda": "Intl Flavors", "Settore": "Materials", "Allocazione %": 5.50, "Quote": "7.5M", "Valore": "$665M"},
-                {"Ticker": "SWX", "Azienda": "Southwest Gas", "Settore": "Utilities", "Allocazione %": 3.20, "Quote": "5.1M", "Valore": "$387M"},
-                {"Ticker": "ALTRI", "Azienda": "Resto del Portafoglio", "Settore": "Multiplo", "Allocazione %": 5.50, "Quote": "-", "Valore": "$665M"},
-            ]
-        }
         
         if inv_name in portfolio_details:
             df_port = pd.DataFrame(portfolio_details[inv_name])
@@ -1362,6 +2770,62 @@ elif page_choice == "👑 Super Investors":
                 horizontal=True,
                 label_visibility="collapsed"
             )
+            st.write("")
+            
+            if st.button("🌌 Esplora Galassia 3D Super Investitori", type="primary"):
+                with st.spinner(f"Calcolo Rischio/Rendimento su dati in blocco a 1 anno... | '{random.choice(WALL_STREET_QUOTES)}'"):
+                    try:
+                        all_tickers = []
+                        inv_owner = []
+                        allocs = []
+                        for inv, port in portfolio_details.items():
+                            for item in port:
+                                if item['Ticker'] != 'ALTRI':
+                                    all_tickers.append(item['Ticker'])
+                                    inv_owner.append(inv)
+                                    allocs.append(item['Allocazione %'])
+                        
+                        unique_tkrs = list(set(all_tickers))
+                        data_1y = yf.download(unique_tkrs, period="1y", progress=False)['Close']
+                        
+                        if not data_1y.empty:
+                            if isinstance(data_1y, pd.Series):
+                                rets_1y = data_1y.to_frame().pct_change().dropna()
+                            else:
+                                rets_1y = data_1y.pct_change().dropna()
+                                
+                            ann_ret = (rets_1y.mean() * 252) * 100
+                            ann_vol = (rets_1y.std() * np.sqrt(252)) * 100
+                            
+                            df_galaxy = pd.DataFrame({
+                                "Ticker": all_tickers,
+                                "Investitore": inv_owner,
+                                "Allocazione %": allocs
+                            })
+                            
+                            df_galaxy["Rendimento Annuo %"] = df_galaxy["Ticker"].map(ann_ret).fillna(0)
+                            df_galaxy["Volatilità %"] = df_galaxy["Ticker"].map(ann_vol).fillna(0)
+                            
+                            fig_gal = px.scatter_3d(
+                                df_galaxy, x="Volatilità %", y="Rendimento Annuo %", z="Allocazione %",
+                                color="Investitore", hover_name="Ticker", size="Allocazione %",
+                                size_max=40, opacity=0.8,
+                                title="Galassia Costellazioni 13F (Rischio vs Rendimento vs Peso)",
+                                color_discrete_sequence=px.colors.qualitative.Alphabet
+                            )
+                            fig_gal.update_layout(
+                                margin=dict(l=0, r=0, b=0, t=30), height=600,
+                                scene=dict(
+                                    xaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(255,255,255,0.1)"),
+                                    yaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(255,255,255,0.1)"),
+                                    zaxis=dict(backgroundcolor="rgba(0,0,0,0)", gridcolor="rgba(255,255,255,0.1)")
+                                )
+                            )
+                            st.plotly_chart(fig_gal, use_container_width=True)
+                        else:
+                            st.error("Errore download Yahoo Finance.")
+                    except Exception as e:
+                        st.error(f"Errore rendering Galassia: {e}")
             st.write("")
             
             super_data = [

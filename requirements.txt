@@ -6,3 +6,6 @@ yfinance
 textblob
 lxml
 requests
+scipy
+fpdf
+beautifulsoup4
