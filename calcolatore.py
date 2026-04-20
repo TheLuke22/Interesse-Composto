@@ -503,7 +503,8 @@ def fetch_stock_info(ticker):
                 'marketCap': getattr(fast, 'market_cap', 0),
                 'previousClose': getattr(fast, 'previous_close', 0),
                 'sharesOutstanding': getattr(fast, 'shares', 0),
-                'trailingPE': 'N/A',
+                'trailingPE': None,
+                'forwardPE': None,
                 'dividendYield': 0,
                 'sector': 'Unknown (Rate Limited)',
                 'industry': 'Unknown',
@@ -1395,14 +1396,16 @@ elif page_choice == "📊 Stock Tracker":
                 
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("Market Cap", format_large_numbers(rt_mcap))
-                m2.metric("P/E (Trailing)", round(info.get('trailingPE'), 2) if info.get('trailingPE') else 'N/A')
+                val_tpe = info.get('trailingPE')
+                m2.metric("P/E (Trailing)", round(val_tpe, 2) if isinstance(val_tpe, (int, float)) else 'N/A')
                 m3.metric("EPS (TTM)", f"${info.get('trailingEps'):.2f}" if info.get('trailingEps') else 'N/A')
                 m4.metric("Div Rate", f"${info.get('dividendRate'):.2f}" if info.get('dividendRate') else 'N/A')
 
                 st.write("")
                 m5, m6, m7, m8 = st.columns(4)
                 m5.metric("Current Price", f"${rt_price:,.2f}", f"{change:.2f}%")
-                m6.metric("P/E (Forward)", round(info.get('forwardPE'), 2) if info.get('forwardPE') else 'N/A')
+                val_fpe = info.get('forwardPE')
+                m6.metric("P/E (Forward)", round(val_fpe, 2) if isinstance(val_fpe, (int, float)) else 'N/A')
                 m7.metric("EPS (Forward)", f"${info.get('forwardEps'):.2f}" if info.get('forwardEps') else 'N/A')
                 
                 div_rate = info.get('dividendRate')
