@@ -487,7 +487,30 @@ def fetch_watchlist_prices(ticker_tuple):
 @st.cache_data(ttl=3600)
 def fetch_stock_info(ticker):
     stock = yf.Ticker(ticker)
-    return stock.info
+    try:
+        info = stock.info
+        if not info:
+            raise ValueError("Empty info (rate limited)")
+        return info
+    except Exception:
+        # Fallback in caso di IP rate-limit di Yahoo Finance
+        try:
+            fast = stock.fast_info
+            return {
+                'symbol': ticker,
+                'shortName': ticker,
+                'currentPrice': getattr(fast, 'last_price', 0),
+                'marketCap': getattr(fast, 'market_cap', 0),
+                'previousClose': getattr(fast, 'previous_close', 0),
+                'sharesOutstanding': getattr(fast, 'shares', 0),
+                'trailingPE': 'N/A',
+                'dividendYield': 0,
+                'sector': 'Unknown (Rate Limited)',
+                'industry': 'Unknown',
+                '_rate_limited': True
+            }
+        except:
+            return {'symbol': ticker, 'shortName': ticker, '_rate_limited': True}
 
 @st.cache_data(ttl=3600)
 def fetch_history(ticker, years):
