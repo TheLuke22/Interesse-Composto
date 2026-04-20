@@ -523,15 +523,21 @@ def fetch_history(ticker, years):
 @st.cache_data(ttl=3600)
 def fetch_financials(ticker):
     stock = yf.Ticker(ticker)
-    return stock.financials, stock.balance_sheet, stock.cashflow
+    try:
+        return stock.financials, stock.balance_sheet, stock.cashflow
+    except Exception:
+        return None, None, None
 
 @st.cache_data(ttl=3600)
 def fetch_financials_extended(ticker):
     """Fetch extended financial data by combining annual + quarterly from yfinance (~5-8 years)."""
     stock = yf.Ticker(ticker)
-    inc_a = stock.income_stmt
-    bal_a = stock.balance_sheet
-    cf_a = stock.cashflow
+    try:
+        inc_a = stock.income_stmt
+        bal_a = stock.balance_sheet
+        cf_a = stock.cashflow
+    except Exception:
+        inc_a, bal_a, cf_a = None, None, None
     try:
         inc_q = stock.quarterly_income_stmt
         bal_q = stock.quarterly_balance_sheet
@@ -1984,7 +1990,10 @@ elif page_choice == "📊 Stock Tracker":
                 # --- TAB 6: EARNINGS & FUNDS ---
                 with tab_funds:
                     st.subheader("📅 Upcoming Earnings & Estimates")
-                    earn_data = stock.earnings_dates
+                    try:
+                        earn_data = stock.earnings_dates
+                    except Exception:
+                        earn_data = None
                     if earn_data is not None:
                         st.dataframe(earn_data, use_container_width=True)
                     else:
