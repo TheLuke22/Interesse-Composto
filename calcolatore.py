@@ -17,14 +17,8 @@ import os
 import textwrap
 import requests
 
-# --- BYPASS YAHOO FINANCE RATE LIMIT ---
-yf_session = requests.Session()
-yf_session.headers.update({
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "*/*",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive"
-})
+# --- YAHOO FINANCE ---
+# (Il yf_session personalizzato è stato rimosso in quanto yfinance lo gestisce nativamente con curl_cffi per evitare i blocchi)
 
 WALL_STREET_QUOTES = [
     "Governments don't rule the world, Goldman Sachs rules the world. - Alessio Rastani",
@@ -496,7 +490,7 @@ def fetch_watchlist_prices(ticker_tuple):
 
 @st.cache_data(ttl=3600)
 def fetch_stock_info(ticker, _v=1):
-    stock = yf.Ticker(ticker, session=yf_session)
+    stock = yf.Ticker(ticker)
     try:
         info = stock.info
         if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
@@ -554,14 +548,14 @@ def fetch_stock_info(ticker, _v=1):
 
 @st.cache_data(ttl=3600)
 def fetch_history(ticker, years, _v=1):
-    stock = yf.Ticker(ticker, session=yf_session)
+    stock = yf.Ticker(ticker)
     end_date = datetime.today()
     start_date = end_date - timedelta(days=years * 365)
     return stock.history(start=start_date, end=end_date)
 
 @st.cache_data(ttl=3600)
 def fetch_financials(ticker, _v=1):
-    stock = yf.Ticker(ticker, session=yf_session)
+    stock = yf.Ticker(ticker)
     try:
         f1, f2, f3 = stock.financials, stock.balance_sheet, stock.cashflow
         if f1 is None or f1.empty: raise ValueError()
@@ -576,7 +570,7 @@ def fetch_financials(ticker, _v=1):
 @st.cache_data(ttl=3600)
 def fetch_financials_extended(ticker):
     """Fetch extended financial data by combining annual + quarterly from yfinance (~5-8 years)."""
-    stock = yf.Ticker(ticker, session=yf_session)
+    stock = yf.Ticker(ticker)
     try:
         inc_a = stock.income_stmt
         bal_a = stock.balance_sheet
@@ -1121,7 +1115,7 @@ if page_choice == "🏠 Home":
             _time.sleep(0.5)
             for tkr in failed_tickers:
                 try:
-                    hist = yf.Ticker(tkr, session=yf_session).history(period="5d")
+                    hist = yf.Ticker(tkr).history(period="5d")
                     if not hist.empty and len(hist) >= 2:
                         curr = float(hist['Close'].iloc[-1])
                         prev = float(hist['Close'].iloc[-2])
@@ -1138,7 +1132,7 @@ if page_choice == "🏠 Home":
         def get_mcap(tkr):
             for attempt in range(3):
                 try:
-                    mcap = float(yf.Ticker(tkr, session=yf_session).fast_info.market_cap)
+                    mcap = float(yf.Ticker(tkr).fast_info.market_cap)
                     return tkr, mcap
                 except:
                     _time.sleep(0.3 * (attempt + 1))
@@ -1420,7 +1414,7 @@ elif page_choice == "📊 Stock Tracker":
         with st.spinner("Caricamento in corso..."):
             info = fetch_stock_info(a_ticker)
             hist_data = fetch_history(a_ticker, a_years)
-            stock = yf.Ticker(a_ticker, session=yf_session) 
+            stock = yf.Ticker(a_ticker) 
             
             if hist_data.empty:
                 st.error("Dati non disponibili o Ticker non trovato.")
@@ -2038,7 +2032,22 @@ elif page_choice == "📊 Stock Tracker":
                     try:
                         earn_data = stock.earnings_dates
                     except Exception:
-                        earn_data = None
+                        try:
+                            # Fallback to stock.calendar se earnings_dates fallisce (es. KeyError su Streamlit Cloud)
+                            cal = stock.calendar
+                            if cal and 'Earnings Date' in cal and cal['Earnings Date']:
+                                earn_dates = cal['Earnings Date']
+                                earn_data = pd.DataFrame({
+                                    "Earnings Date": earn_dates,
+                                    "EPS Est. Average": [cal.get("Earnings Average", "N/A")] * len(earn_dates),
+                                    "Rev Est. Average": [cal.get("Revenue Average", "N/A")] * len(earn_dates)
+                                })
+                                # Gestisci le date come indice se ci sono, per coerenza con earnings_dates
+                                earn_data.set_index("Earnings Date", inplace=True)
+                            else:
+                                earn_data = None
+                        except Exception:
+                            earn_data = None
                     if earn_data is not None:
                         st.dataframe(earn_data, use_container_width=True)
                     else:
@@ -2166,7 +2175,7 @@ elif page_choice == "📁 My Portfolio":
         new_shares = c2.number_input("Quantità (Azioni/Quote)", min_value=0.0, step=0.1)
         if c3.button("Aggiungi al Book") and new_ticker:
             try:
-                check_df = yf.Ticker(new_ticker, session=yf_session).history(period="1d")
+                check_df = yf.Ticker(new_ticker).history(period="1d")
                 if check_df.empty:
                     st.error("Ticker non valido. Riprova.")
                 else:
@@ -2565,7 +2574,7 @@ elif page_choice == "🌍 Macro & Market":
         
         macro_data = {}
         for name, tk in macro_tickers.items():
-            hist = yf.Ticker(tk, session=yf_session).history(period="6mo")
+            hist = yf.Ticker(tk).history(period="6mo")
             if not hist.empty: macro_data[name] = hist['Close']
                 
         items = list(macro_data.items())
