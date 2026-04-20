@@ -1659,7 +1659,10 @@ elif page_choice == "📊 Stock Tracker":
                     
                     with col_h1:
                         st.write("**Share Ownership Breakdown**")
-                        holders = stock.major_holders
+                        try:
+                            holders = stock.major_holders
+                        except:
+                            holders = None
                         if holders is not None and not holders.empty:
                             holders_df = holders.copy()
                             if isinstance(holders_df, pd.Series):
@@ -1692,7 +1695,10 @@ elif page_choice == "📊 Stock Tracker":
                     
                     with col_h2:
                         st.write("**Top Institutional Holders**")
-                        inst_holders = stock.institutional_holders
+                        try:
+                            inst_holders = stock.institutional_holders
+                        except:
+                            inst_holders = None
                         if inst_holders is not None and not inst_holders.empty:
                             inst_df = inst_holders.copy()
                             
