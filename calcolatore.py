@@ -489,11 +489,40 @@ def fetch_stock_info(ticker):
     stock = yf.Ticker(ticker)
     try:
         info = stock.info
-        if not info:
+        if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
             raise ValueError("Empty info (rate limited)")
         return info
     except Exception:
-        # Fallback in caso di IP rate-limit di Yahoo Finance
+        # Fallback primario: API FMP Istituzionale
+        API_KEY = "ZIDZlYJLFBKtr9HgMsCF79zuPv540wkn"
+        try:
+            import requests
+            p_data = requests.get(f"https://financialmodelingprep.com/api/v3/profile/{ticker}?apikey={API_KEY}", timeout=5).json()
+            q_data = requests.get(f"https://financialmodelingprep.com/api/v3/quote/{ticker}?apikey={API_KEY}", timeout=5).json()
+            
+            p = p_data[0] if p_data and isinstance(p_data, list) else {}
+            q = q_data[0] if q_data and isinstance(q_data, list) else {}
+            
+            if p or q:
+                return {
+                    'symbol': ticker,
+                    'shortName': p.get('companyName', ticker),
+                    'currentPrice': q.get('price', 0),
+                    'marketCap': p.get('mktCap', 0),
+                    'previousClose': q.get('previousClose', 0),
+                    'sharesOutstanding': q.get('sharesOutstanding', 0),
+                    'trailingPE': q.get('pe'),
+                    'forwardPE': None,
+                    'dividendRate': p.get('lastDiv', 0),
+                    'sector': p.get('sector', 'Unknown'),
+                    'industry': p.get('industry', 'Unknown'),
+                    'trailingEps': q.get('eps'),
+                    '_rate_limited': False
+                }
+        except:
+            pass
+
+        # Ultimate fallback a fast_info locale
         try:
             fast = stock.fast_info
             return {
@@ -524,9 +553,15 @@ def fetch_history(ticker, years):
 def fetch_financials(ticker):
     stock = yf.Ticker(ticker)
     try:
-        return stock.financials, stock.balance_sheet, stock.cashflow
+        f1, f2, f3 = stock.financials, stock.balance_sheet, stock.cashflow
+        if f1 is None or f1.empty: raise ValueError()
+        return f1, f2, f3
     except Exception:
-        return None, None, None
+        try:
+            API_KEY = "ZIDZlYJLFBKtr9HgMsCF79zuPv540wkn"
+            return fetch_fmp_financials(ticker, API_KEY)
+        except:
+            return None, None, None
 
 @st.cache_data(ttl=3600)
 def fetch_financials_extended(ticker):
