@@ -488,63 +488,143 @@ def fetch_watchlist_prices(ticker_tuple):
         return {}
 
 
+def fetch_fmp_quote(ticker, api_key):
+    """Fetch real-time quote data from Financial Modeling Prep (stable API)."""
+    result = {}
+    try:
+        # 1. Fetch Price & basic quote data
+        url_q = f"https://financialmodelingprep.com/stable/quote?symbol={ticker}&apikey={api_key}"
+        r_q = requests.get(url_q, timeout=5)
+        if r_q.status_code == 200:
+            data_q = r_q.json()
+            if data_q and isinstance(data_q, list):
+                q = data_q[0]
+                result['price'] = q.get('price')
+                result['marketCap'] = q.get('marketCap')
+                result['previousClose'] = q.get('previousClose')
+                result['name'] = q.get('name')
+                result['exchange'] = q.get('exchange')
+                if result.get('marketCap') and result.get('price'):
+                    result['sharesOutstanding'] = result['marketCap'] / result['price']
+                    
+        # 2. Fetch Valuation Ratios (PE, EPS, Dividend)
+        url_r = f"https://financialmodelingprep.com/stable/ratios-ttm?symbol={ticker}&apikey={api_key}"
+        r_r = requests.get(url_r, timeout=5)
+        if r_r.status_code == 200:
+            data_r = r_r.json()
+            if data_r and isinstance(data_r, list):
+                rat = data_r[0]
+                result['pe'] = rat.get('priceToEarningsRatioTTM')
+                result['eps'] = rat.get('netIncomePerShareTTM')
+                result['dividendRate'] = rat.get('dividendPerShareTTM')
+                result['dividendYield'] = rat.get('dividendYieldTTM')
+    except:
+        pass
+    return result if result else None
+
 @st.cache_data(ttl=3600)
 def fetch_stock_info(ticker, _v=1):
     stock = yf.Ticker(ticker)
+    info = None
     try:
         info = stock.info
         if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
             raise ValueError("Empty info (rate limited)")
-        return info
     except Exception:
-        # Fallback primario: API FMP Istituzionale
-        API_KEY = "ZIDZlYJLFBKtr9HgMsCF79zuPv540wkn"
+        info = None
+        
+    # Check if info is missing key valuation metrics
+    metrics_to_check = ['trailingPE', 'forwardPE', 'trailingEps', 'forwardEps']
+    is_thin = info is None or not any(m in info for m in metrics_to_check)
+    
+    if is_thin:
         try:
-            import requests
-            p_data = requests.get(f"https://financialmodelingprep.com/api/v3/profile/{ticker}?apikey={API_KEY}", timeout=5).json()
-            q_data = requests.get(f"https://financialmodelingprep.com/api/v3/quote/{ticker}?apikey={API_KEY}", timeout=5).json()
-            
-            p = p_data[0] if p_data and isinstance(p_data, list) else {}
-            q = q_data[0] if q_data and isinstance(q_data, list) else {}
-            
-            if p or q:
-                return {
-                    'symbol': ticker,
-                    'shortName': p.get('companyName', ticker),
-                    'currentPrice': q.get('price', 0),
-                    'marketCap': p.get('mktCap', 0),
-                    'previousClose': q.get('previousClose', 0),
-                    'sharesOutstanding': q.get('sharesOutstanding', 0),
-                    'trailingPE': q.get('pe'),
-                    'forwardPE': None,
-                    'dividendRate': p.get('lastDiv', 0),
-                    'sector': p.get('sector', 'Unknown'),
-                    'industry': p.get('industry', 'Unknown'),
-                    'trailingEps': q.get('eps'),
-                    '_rate_limited': False
+            FMP_KEY = "ZIDZlYJLFBKtr9HgMsCF79zuPv540wkn"
+            fmp_data = fetch_fmp_quote(ticker, FMP_KEY)
+            if fmp_data:
+                if info is None: 
+                    info = {'symbol': ticker, 'shortName': ticker}
+                
+                # Map FMP fields to yfinance fields for consistency
+                mapping = {
+                    'price': 'currentPrice',
+                    'pe': 'trailingPE',
+                    'eps': 'trailingEps',
+                    'marketCap': 'marketCap',
+                    'sharesOutstanding': 'sharesOutstanding',
+                    'previousClose': 'previousClose',
+                    'name': 'shortName',
+                    'dividendRate': 'dividendRate',
+                    'dividendYield': 'dividendYield'
                 }
-        except:
+                for fmp_key, yf_key in mapping.items():
+                    if fmp_key in fmp_data and (yf_key not in info or info[yf_key] is None):
+                        info[yf_key] = fmp_data[fmp_key]
+                info['_fmp_augmented'] = True
+        except Exception:
             pass
 
-        # Ultimate fallback a fast_info locale
+    if info and ('currentPrice' in info or 'regularMarketPrice' in info):
+        return info
+    
+    # Se ancora non abbiamo i dati base, procediamo col fallback quantitativo
+    try:
+        fast = stock.fast_info
+        curr_price = getattr(fast, 'last_price', 0)
+        shares = getattr(fast, 'shares', 0)
+        
+        fallback_info = {
+            'symbol': ticker,
+            'shortName': ticker,
+            'currentPrice': curr_price,
+            'marketCap': getattr(fast, 'market_cap', 0),
+            'previousClose': getattr(fast, 'previous_close', 0),
+            'sharesOutstanding': shares,
+            'sector': 'Unknown (Rate Limited)',
+            'industry': 'Unknown',
+            '_rate_limited': True
+        }
+
         try:
-            fast = stock.fast_info
-            return {
-                'symbol': ticker,
-                'shortName': ticker,
-                'currentPrice': getattr(fast, 'last_price', 0),
-                'marketCap': getattr(fast, 'market_cap', 0),
-                'previousClose': getattr(fast, 'previous_close', 0),
-                'sharesOutstanding': getattr(fast, 'shares', 0),
-                'trailingPE': None,
-                'forwardPE': None,
-                'dividendYield': 0,
-                'sector': 'Unknown (Rate Limited)',
-                'industry': 'Unknown',
-                '_rate_limited': True
-            }
-        except:
-            return {'symbol': ticker, 'shortName': ticker, '_rate_limited': True}
+            # Tenta di estrarre metriche fondamentali (ROE, Margini, Debito, ecc) in modo passivo
+            inc = stock.income_stmt
+            bal = stock.balance_sheet
+            cf = stock.cashflow
+            
+            if inc is not None and not inc.empty and 'Net Income' in inc.index and 'Total Revenue' in inc.index:
+                net_inc = inc.loc['Net Income'].dropna().iloc[0]
+                rev = inc.loc['Total Revenue'].dropna().iloc[0]
+                if rev > 0: fallback_info['profitMargins'] = net_inc / rev
+                
+                if curr_price and shares:
+                    eps = net_inc / shares
+                    if eps > 0: fallback_info['trailingPE'] = curr_price / eps
+
+            if bal is not None and not bal.empty:
+                eq_key = 'Stockholders Equity' if 'Stockholders Equity' in bal.index else 'Total Stockholders Equity'
+                if eq_key in bal.index and 'profitMargins' in fallback_info:
+                    eq = bal.loc[eq_key].dropna().iloc[0]
+                    net_inc = inc.loc['Net Income'].dropna().iloc[0]
+                    if eq > 0: fallback_info['returnOnEquity'] = net_inc / eq
+                    
+                if 'Total Debt' in bal.index:
+                    tot_debt = bal.loc['Total Debt'].dropna().iloc[0]
+                    if 'Total Stockholders Equity' in bal.index:
+                        eq = bal.loc['Total Stockholders Equity'].dropna().iloc[0]
+                        if eq > 0: fallback_info['debtToEquity'] = (tot_debt / eq) * 100
+                        
+                cash_key = 'Cash And Cash Equivalents'
+                if cash_key in bal.index:
+                    fallback_info['totalCash'] = bal.loc[cash_key].dropna().iloc[0]
+                    
+            if cf is not None and not cf.empty and 'Free Cash Flow' in cf.index:
+                fallback_info['leveredFreeCashFlow'] = cf.loc['Free Cash Flow'].dropna().iloc[0]
+        except Exception:
+            pass
+            
+        return fallback_info
+    except Exception:
+        return {'symbol': ticker, 'shortName': ticker, '_rate_limited': True}
 
 @st.cache_data(ttl=3600)
 def fetch_history(ticker, years, _v=1):
@@ -1439,19 +1519,54 @@ elif page_choice == "📊 Stock Tracker":
                 else:
                     rt_mcap = info.get('marketCap', 0)
                 
+                # Helper to safely extract numeric values (handles None, NaN, non-numeric)
+                def _safe_num(val):
+                    if val is None:
+                        return None
+                    try:
+                        import pandas as pd
+                        if pd.isna(val):
+                            return None
+                    except Exception:
+                        pass
+                    return val if isinstance(val, (int, float)) else None
+
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("Market Cap", format_large_numbers(rt_mcap))
-                val_tpe = info.get('trailingPE')
-                m2.metric("P/E (Trailing)", round(val_tpe, 2) if isinstance(val_tpe, (int, float)) else 'N/A')
-                m3.metric("EPS (TTM)", f"${info.get('trailingEps'):.2f}" if info.get('trailingEps') else 'N/A')
-                m4.metric("Div Rate", f"${info.get('dividendRate'):.2f}" if info.get('dividendRate') else 'N/A')
+
+                # Trailing PE
+                val_tpe = _safe_num(info.get('trailingPE'))
+                # Manual calculation fallback if PE is missing but EPS and Price are present
+                if val_tpe is None:
+                    e_ttm = _safe_num(info.get('trailingEps'))
+                    if e_ttm and e_ttm > 0 and rt_price:
+                        val_tpe = rt_price / e_ttm
+                m2.metric("P/E (Trailing)", round(val_tpe, 2) if val_tpe is not None else 'N/A')
+
+                # EPS (TTM)
+                eps_ttm = _safe_num(info.get('trailingEps'))
+                m3.metric("EPS (TTM)", f"${eps_ttm:.2f}" if eps_ttm is not None else 'N/A')
+
+                # Dividend Rate
+                div_rate = _safe_num(info.get('dividendRate'))
+                m4.metric("Div Rate", f"${div_rate:.2f}" if div_rate is not None else 'N/A')
 
                 st.write("")
+
                 m5, m6, m7, m8 = st.columns(4)
                 m5.metric("Current Price", f"${rt_price:,.2f}", f"{change:.2f}%")
-                val_fpe = info.get('forwardPE')
-                m6.metric("P/E (Forward)", round(val_fpe, 2) if isinstance(val_fpe, (int, float)) else 'N/A')
-                m7.metric("EPS (Forward)", f"${info.get('forwardEps'):.2f}" if info.get('forwardEps') else 'N/A')
+
+                # Forward PE
+                val_fpe = _safe_num(info.get('forwardPE'))
+                if val_fpe is None:
+                    e_fwd = _safe_num(info.get('forwardEps'))
+                    if e_fwd and e_fwd > 0 and rt_price:
+                        val_fpe = rt_price / e_fwd
+                m6.metric("P/E (Forward)", round(val_fpe, 2) if val_fpe is not None else 'N/A')
+
+                # EPS (Forward)
+                eps_fwd = _safe_num(info.get('forwardEps'))
+                m7.metric("EPS (Forward)", f"${eps_fwd:.2f}" if eps_fwd is not None else 'N/A')
                 
                 div_rate = info.get('dividendRate')
                 if div_rate and rt_price > 0:
@@ -2186,6 +2301,44 @@ elif page_choice == "📁 My Portfolio":
             except Exception as e:
                 st.error("Errore imprevisto durante la validazione. Riprova.")
 
+    # --- GESTIONE / RIMOZIONE POSIZIONI ---
+    if st.session_state['portfolio']:
+        with st.expander("⚙️ Gestisci / Rimuovi Posizione", expanded=False):
+            position_options = [
+                f"{i+1}. {item['ticker']} ({item['shares']} quote)" 
+                for i, item in enumerate(st.session_state['portfolio'])
+            ]
+            selected_pos = st.selectbox("Seleziona una posizione da gestire", options=position_options)
+            
+            if selected_pos:
+                selected_idx = position_options.index(selected_pos)
+                current_item = st.session_state['portfolio'][selected_idx]
+                
+                m1, m2 = st.columns(2)
+                
+                with m1:
+                    new_qty = st.number_input(
+                        f"Modifica Quantità per {current_item['ticker']}", 
+                        min_value=0.0, 
+                        value=float(current_item['shares']), 
+                        step=0.1,
+                        key=f"edit_qty_{selected_idx}"
+                    )
+                    if st.button("Aggiorna Quantità", key=f"btn_update_{selected_idx}"):
+                        st.session_state['portfolio'][selected_idx]['shares'] = new_qty
+                        save_portfolio(st.session_state['portfolio'])
+                        st.toast(f"Quantità di {current_item['ticker']} aggiornata a {new_qty}!", icon="✅")
+                        st.rerun()
+                        
+                with m2:
+                    st.write(" ") 
+                    st.write(" ")
+                    if st.button("Rimuovi Posizione", type="primary", key=f"btn_remove_{selected_idx}"):
+                        removed_item = st.session_state['portfolio'].pop(selected_idx)
+                        save_portfolio(st.session_state['portfolio'])
+                        st.toast(f"{removed_item['ticker']} rimosso con successo!", icon="🗑️")
+                        st.rerun()
+
     # --- VISUALIZZAZIONE PORTAFOGLIO ---
     if st.session_state['portfolio']:
         st.subheader("Le tue posizioni")
@@ -2629,18 +2782,39 @@ elif page_choice == "🔍 Stock Screener":
                 def evaluate_ticker(tkr):
                     try:
                         tk_info = fetch_stock_info(tkr)
-                        if not tk_info: return None
-                        pe = tk_info.get('trailingPE')
-                        d_yield = tk_info.get('dividendYield', 0)
-                        d_yield = d_yield if d_yield else 0
-                        mcap_b = tk_info.get('marketCap', 0) / 1e9
+                        if not tk_info:
+                            return None
+                        # Helper to safely extract numeric values (handles None, NaN, non-numeric)
+                        def _safe_num(val):
+                            if val is None:
+                                return None
+                            try:
+                                import pandas as pd
+                                if pd.isna(val):
+                                    return None
+                            except Exception:
+                                pass
+                            return val if isinstance(val, (int, float)) else None
+
+                        pe = _safe_num(tk_info.get('trailingPE'))
+                        # Dividend Yield: direct field or compute from dividendRate/currentPrice
+                        div_yield = _safe_num(tk_info.get('dividendYield'))
+                        if div_yield is None:
+                            rate = _safe_num(tk_info.get('dividendRate'))
+                            price = _safe_num(tk_info.get('currentPrice'))
+                            if rate is not None and price and price > 0:
+                                div_yield = (rate / price) * 100
+                        if div_yield is None:
+                            div_yield = 0
+                        mcap = _safe_num(tk_info.get('marketCap'))
+                        mcap_b = (mcap or 0) / 1e9
                         
-                        if pe and pe <= max_pe and d_yield >= min_div and mcap_b >= min_cap:
+                        if pe and pe <= max_pe and div_yield >= min_div and mcap_b >= min_cap:
                             return {
                                 "Ticker": tkr,
                                 "Azienda": tk_info.get('shortName', ''),
                                 "P/E": round(pe, 2),
-                                "Div Yield %": round(d_yield, 2),
+                                "Div Yield %": round(div_yield, 2),
                                 "Market Cap (B)": round(mcap_b, 2),
                                 "Prezzo": tk_info.get('currentPrice', 'N/A')
                             }
