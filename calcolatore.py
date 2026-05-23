@@ -2285,16 +2285,23 @@ elif page_choice == "📁 My Portfolio":
 
     # --- INPUT PER AGGIUNGERE TITOLI ---
     with st.expander("➕ Aggiungi Nuova Posizione", expanded=False):
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         new_ticker = c1.text_input("Ticker (es. AAPL)").upper()
         new_shares = c2.number_input("Quantità (Azioni/Quote)", min_value=0.0, step=0.1)
-        if c3.button("Aggiungi al Book") and new_ticker:
+        new_price = c3.number_input("Prezzo di Acquisto ($) [opzionale]", min_value=0.0, step=1.0, value=0.0, help="Se lasciato a 0.0, userà il prezzo attuale di mercato")
+        if c4.button("Aggiungi al Book") and new_ticker:
             try:
                 check_df = yf.Ticker(new_ticker).history(period="1d")
                 if check_df.empty:
                     st.error("Ticker non valido. Riprova.")
                 else:
-                    st.session_state['portfolio'].append({"ticker": new_ticker, "shares": new_shares})
+                    curr_price = float(check_df['Close'].iloc[-1])
+                    purchase_price = new_price if new_price > 0.0 else curr_price
+                    st.session_state['portfolio'].append({
+                        "ticker": new_ticker, 
+                        "shares": new_shares,
+                        "purchase_price": purchase_price
+                    })
                     save_portfolio(st.session_state['portfolio'])
                     st.toast(f"{new_ticker} aggiunto con successo!", icon="✅")
                     st.rerun()
@@ -2324,10 +2331,20 @@ elif page_choice == "📁 My Portfolio":
                         step=0.1,
                         key=f"edit_qty_{selected_idx}"
                     )
-                    if st.button("Aggiorna Quantità", key=f"btn_update_{selected_idx}"):
+                    old_price = float(current_item.get('purchase_price', 0.0))
+                    new_purchase_price = st.number_input(
+                        f"Prezzo di Acquisto ($) per {current_item['ticker']}",
+                        min_value=0.0,
+                        value=old_price,
+                        step=1.0,
+                        key=f"edit_price_{selected_idx}",
+                        help="Imposta il prezzo medio a cui hai acquistato l'azione"
+                    )
+                    if st.button("Aggiorna Posizione", key=f"btn_update_{selected_idx}"):
                         st.session_state['portfolio'][selected_idx]['shares'] = new_qty
+                        st.session_state['portfolio'][selected_idx]['purchase_price'] = new_purchase_price
                         save_portfolio(st.session_state['portfolio'])
-                        st.toast(f"Quantità di {current_item['ticker']} aggiornata a {new_qty}!", icon="✅")
+                        st.toast(f"Posizione {current_item['ticker']} aggiornata con successo!", icon="✅")
                         st.rerun()
                         
                 with m2:
@@ -2345,16 +2362,28 @@ elif page_choice == "📁 My Portfolio":
         
         tickers = [item['ticker'] for item in st.session_state['portfolio']]
         
-        with st.spinner("Aggiornamento prezzi batch..."):
+        with st.spinner("Aggiornamento prezzi e dividendi batch..."):
             # FETCH PREZZI IN BATCH PIÙ EFFICIENTE
             prices_dict = get_batch_prices(list(set(tickers)))
             
+            # Fetch stock info per dividendi (utilizza la cache con fallback robusto)
+            stock_infos = {}
+            for tk in list(set(tickers)):
+                try:
+                    stock_infos[tk] = fetch_stock_info(tk)
+                except Exception:
+                    stock_infos[tk] = None
+            
             portfolio_data = []
             total_portfolio_value = 0
+            total_portfolio_cost = 0.0
+            total_trailing_dividends = 0.0
+            total_forward_dividends = 0.0
 
             for item in st.session_state['portfolio']:
                 ticker = item['ticker']
                 shares = item['shares']
+                purchase_price = float(item.get('purchase_price', 0.0))
                 
                 # Otteniamo il prezzo dalla cache batch
                 current_price = prices_dict.get(ticker, 0.0) 
@@ -2362,25 +2391,75 @@ elif page_choice == "📁 My Portfolio":
                 if isinstance(current_price, pd.Series):
                     current_price = current_price.iloc[0]
 
+                # Fallback per il prezzo d'acquisto se è 0.0 (es. posizioni esistenti non modificate)
+                if purchase_price == 0.0:
+                    purchase_price = current_price
+
                 current_value = shares * current_price
                 total_portfolio_value += current_value
+                total_portfolio_cost += shares * purchase_price
+                
+                # Recupera dati dividendi
+                info = stock_infos.get(ticker) or {}
+                
+                trailing_div_rate = info.get('trailingAnnualDividendRate')
+                if trailing_div_rate is None or trailing_div_rate == 0:
+                    trailing_div_rate = info.get('dividendRate')
+                if trailing_div_rate is None:
+                    trailing_div_rate = 0.0
+                    
+                forward_div_rate = info.get('dividendRate')
+                if forward_div_rate is None or forward_div_rate == 0:
+                    forward_div_rate = info.get('trailingAnnualDividendRate')
+                if forward_div_rate is None:
+                    forward_div_rate = 0.0
+                
+                # Calcola YOC individuale
+                yoc = 0.0
+                yoc_fwd = 0.0
+                if purchase_price > 0.0:
+                    yoc = (trailing_div_rate / purchase_price) * 100
+                    yoc_fwd = (forward_div_rate / purchase_price) * 100
+                
+                # Accumula dividendi totali per YOC di portafoglio
+                total_trailing_dividends += shares * trailing_div_rate
+                total_forward_dividends += shares * forward_div_rate
                 
                 portfolio_data.append({
                     "Ticker": ticker,
                     "Quantità": shares,
-                    "Prezzo Attuale": current_price,
-                    "Valore Totale ($)": current_value
+                    "Prezzo d'Acquisto ($)": purchase_price,
+                    "Prezzo Attuale ($)": current_price,
+                    "Costo Totale ($)": shares * purchase_price,
+                    "Valore Totale ($)": current_value,
+                    "YOC (%)": yoc if (trailing_div_rate > 0.0) else 0.0,
+                    "YOC FWD (%)": yoc_fwd if (forward_div_rate > 0.0) else 0.0
                 })
 
         df_portfolio = pd.DataFrame(portfolio_data)
 
         # Tabella formattata in stile Bloomberg
         st.dataframe(df_portfolio.style.format({
-            'Prezzo Attuale': '${:,.2f}',
-            'Valore Totale ($)': '${:,.2f}'
+            "Prezzo d'Acquisto ($)": '${:,.2f}',
+            "Prezzo Attuale ($)": '${:,.2f}',
+            "Costo Totale ($)": '${:,.2f}',
+            "Valore Totale ($)": '${:,.2f}',
+            "YOC (%)": "{:.2f}%",
+            "YOC FWD (%)": "{:.2f}%"
         }), use_container_width=True, hide_index=True)
 
-        st.metric("Total Assets Under Management (AUM)", format_large_numbers(total_portfolio_value))
+        # Calcolo YOC globali del portafoglio
+        portfolio_yoc = 0.0
+        portfolio_yoc_fwd = 0.0
+        if total_portfolio_cost > 0.0:
+            portfolio_yoc = (total_trailing_dividends / total_portfolio_cost) * 100
+            portfolio_yoc_fwd = (total_forward_dividends / total_portfolio_cost) * 100
+
+        # KPI Metrics
+        kpi_c1, kpi_c2, kpi_c3 = st.columns(3)
+        kpi_c1.metric("Total Assets Under Management (AUM)", format_large_numbers(total_portfolio_value))
+        kpi_c2.metric("Portfolio Yield on Cost (YOC)", f"{portfolio_yoc:.2f}%" if total_portfolio_cost > 0.0 else "0.00%")
+        kpi_c3.metric("Portfolio YOC (FWD)", f"{portfolio_yoc_fwd:.2f}%" if total_portfolio_cost > 0.0 else "0.00%")
 
         st.divider()
         st.subheader("⚖️ Risk Concentration")
