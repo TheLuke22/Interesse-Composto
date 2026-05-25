@@ -211,11 +211,8 @@ def save_portfolio(p_list):
         
     # Auto-sync su Google Sheets se configurato in session_state
     try:
-        import requests
         if 'gsheets_url' in st.session_state and st.session_state.get('gsheets_auto_sync', False):
-            url = st.session_state['gsheets_url']
-            if url:
-                requests.post(url, json=p_list, timeout=5)
+            push_portfolio_to_gsheets(p_list)
     except Exception:
         pass
 
@@ -635,6 +632,76 @@ def fetch_stock_info(ticker, _v=1):
         return fallback_info
     except Exception:
         return {'symbol': ticker, 'shortName': ticker, '_rate_limited': True}
+
+def push_portfolio_to_gsheets(p_list):
+    try:
+        url = st.session_state.get('gsheets_url')
+        if not url:
+            # Carica da file se non è in session state
+            if os.path.exists("gsheets_url.txt"):
+                with open("gsheets_url.txt", "r") as f:
+                    url = f.read().strip()
+        if not url: return
+        
+        import requests
+        import pandas as pd
+        
+        # Ottieni prezzi e dividendi correnti per arricchire il pacchetto
+        tickers = [item['ticker'] for item in p_list]
+        if not tickers: return
+        prices_dict = get_batch_prices(list(set(tickers)))
+        
+        # Fetch stock info per dividendi (utilizza la cache con fallback robusto)
+        stock_infos = {}
+        for tk in list(set(tickers)):
+            try:
+                stock_infos[tk] = fetch_stock_info(tk)
+            except Exception:
+                stock_infos[tk] = None
+        
+        enriched_data = []
+        for item in p_list:
+            tk = item['ticker']
+            sh = item['shares']
+            pr = float(item.get('purchase_price', 0.0))
+            
+            curr_p = prices_dict.get(tk, 0.0)
+            if isinstance(curr_p, pd.Series): curr_p = curr_p.iloc[0]
+            if pr == 0.0: pr = curr_p
+            
+            info = stock_infos.get(tk) or {}
+                
+            trailing_div_rate = info.get('trailingAnnualDividendRate')
+            if trailing_div_rate is None or trailing_div_rate == 0:
+                trailing_div_rate = info.get('dividendRate')
+            if trailing_div_rate is None:
+                trailing_div_rate = 0.0
+                
+            forward_div_rate = info.get('dividendRate')
+            if forward_div_rate is None or forward_div_rate == 0:
+                forward_div_rate = info.get('trailingAnnualDividendRate')
+            if forward_div_rate is None:
+                forward_div_rate = 0.0
+                
+            yoc = (trailing_div_rate / pr * 100) if pr > 0 else 0.0
+            yoc_fwd = (forward_div_rate / pr * 100) if pr > 0 else 0.0
+            
+            enriched_data.append({
+                "Ticker": tk,
+                "Quantità": sh,
+                "Prezzo d'Acquisto ($)": pr,
+                "Prezzo Attuale ($)": curr_p,
+                "Costo Totale ($)": sh * pr,
+                "Valore Totale ($)": sh * curr_p,
+                "YOC (%)": f"{yoc:.2f}%",
+                "Dividendi TTM ($)": sh * trailing_div_rate,
+                "YOC FWD (%)": f"{yoc_fwd:.2f}%",
+                "Dividendi FWD ($)": sh * forward_div_rate
+            })
+            
+        requests.post(url, json=enriched_data, timeout=10)
+    except Exception:
+        pass
 
 @st.cache_data(ttl=3600)
 def fetch_history(ticker, years, _v=1):
@@ -2462,12 +2529,8 @@ elif page_choice == "📁 My Portfolio":
                 if st.button("📤 Invia a Google Sheets", key="btn_write_gsheets"):
                     with st.spinner("Invio dati in corso a Google Sheets..."):
                         try:
-                            import requests
-                            res = requests.post(gsheets_url, json=st.session_state['portfolio'], timeout=10)
-                            if res.status_code == 200:
-                                st.toast("Dati inviati a Google Sheets con successo!", icon="✅")
-                            else:
-                                st.error(f"Errore di connessione: HTTP {res.status_code}")
+                            push_portfolio_to_gsheets(st.session_state['portfolio'])
+                            st.toast("Dati inviati a Google Sheets con successo!", icon="✅")
                         except Exception as e:
                             st.error(f"Errore durante l'invio: {e}")
                             
