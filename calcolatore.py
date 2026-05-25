@@ -208,6 +208,16 @@ def save_portfolio(p_list):
             json.dump(p_list, f)
     except Exception:
         pass
+        
+    # Auto-sync su Google Sheets se configurato in session_state
+    try:
+        import requests
+        if 'gsheets_url' in st.session_state and st.session_state.get('gsheets_auto_sync', False):
+            url = st.session_state['gsheets_url']
+            if url:
+                requests.post(url, json=p_list, timeout=5)
+    except Exception:
+        pass
 
 WATCHLIST_FILE = 'watchlist.json'
 
@@ -2396,6 +2406,126 @@ elif page_choice == "📁 My Portfolio":
                         st.error("Nessun dato valido trovato nel file.")
                 except Exception as e:
                     st.error(f"Errore durante l'importazione: {e}")
+
+    # --- GOOGLE SHEETS SYNC ---
+    with st.expander("📊 Sincronizzazione Google Sheets", expanded=False):
+        st.markdown("### 🔄 Sincronizza il tuo portafoglio in tempo reale")
+        st.write("Collega un foglio Google Sheets per salvare e sincronizzare automaticamente il tuo portafoglio su tutti i tuoi dispositivi.")
+        
+        # Cerca URL nei secrets o nel session state o in un file locale
+        saved_url = ""
+        if 'GSHEETS_URL' in st.secrets:
+            saved_url = st.secrets['GSHEETS_URL']
+        elif os.path.exists("gsheets_url.txt"):
+            try:
+                with open("gsheets_url.txt", "r") as f:
+                    saved_url = f.read().strip()
+            except:
+                pass
+                
+        gsheets_url = st.text_input(
+            "URL del tuo Google Apps Script Web App", 
+            value=saved_url,
+            help="Incolla l'URL della Web App generata da Google Sheets. Vedi le istruzioni sotto per configurarlo."
+        )
+        
+        if gsheets_url:
+            # Salva l'URL in gsheets_url.txt per persistenza locale
+            if gsheets_url != saved_url:
+                try:
+                    with open("gsheets_url.txt", "w") as f:
+                        f.write(gsheets_url)
+                except:
+                    pass
+            
+            c_s1, c_s2 = st.columns(2)
+            with c_s1:
+                if st.button("🔄 Leggi da Google Sheets", key="btn_read_gsheets"):
+                    with st.spinner("Lettura dati in corso da Google Sheets..."):
+                        try:
+                            import requests
+                            res = requests.get(gsheets_url, timeout=10)
+                            if res.status_code == 200:
+                                imported_portfolio = res.json()
+                                if isinstance(imported_portfolio, list):
+                                    st.session_state['portfolio'] = imported_portfolio
+                                    save_portfolio(imported_portfolio)
+                                    st.toast("Dati letti da Google Sheets con successo!", icon="✅")
+                                    st.rerun()
+                                else:
+                                    st.error("Dati ricevuti non validi. Verifica l'Apps Script.")
+                            else:
+                                st.error(f"Errore di connessione: HTTP {res.status_code}")
+                        except Exception as e:
+                            st.error(f"Errore durante la lettura: {e}")
+            with c_s2:
+                if st.button("📤 Invia a Google Sheets", key="btn_write_gsheets"):
+                    with st.spinner("Invio dati in corso a Google Sheets..."):
+                        try:
+                            import requests
+                            res = requests.post(gsheets_url, json=st.session_state['portfolio'], timeout=10)
+                            if res.status_code == 200:
+                                st.toast("Dati inviati a Google Sheets con successo!", icon="✅")
+                            else:
+                                st.error(f"Errore di connessione: HTTP {res.status_code}")
+                        except Exception as e:
+                            st.error(f"Errore durante l'invio: {e}")
+                            
+            # Auto sync toggle
+            auto_sync = st.checkbox("Sincronizzazione automatica ad ogni modifica", value=True, help="Se attivo, ogni aggiunta, modifica o rimozione di titoli sul sito salverà automaticamente sul tuo Google Sheets.")
+            st.session_state['gsheets_auto_sync'] = auto_sync
+            st.session_state['gsheets_url'] = gsheets_url
+        
+        # Guida all'installazione
+        with st.container():
+            st.divider()
+            st.markdown("#### 🛠️ Guida alla configurazione in 1 minuto")
+            st.markdown("""
+            1. Crea un nuovo **Foglio Google Sheets**.
+            2. Fai clic su **Estensioni** in alto -> **Apps Script**.
+            3. Cancella tutto il codice presente e incolla questo script:
+            """)
+            st.code("""
+function doGet() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var data = sheet.getDataRange().getValues();
+  var portfolio = [];
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (row[0]) {
+      portfolio.push({
+        ticker: row[0].toString().trim().toUpperCase(),
+        shares: parseFloat(row[1]) || 0,
+        purchase_price: parseFloat(row[2]) || 0
+      });
+    }
+  }
+  return ContentService.createTextOutput(JSON.stringify(portfolio))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  sheet.clearContents();
+  sheet.appendRow(["Ticker", "Quantità", "Prezzo d'Acquisto"]);
+  var portfolio = JSON.parse(e.postData.contents);
+  for (var i = 0; i < portfolio.length; i++) {
+    var item = portfolio[i];
+    sheet.appendRow([item.ticker, item.shares, item.purchase_price]);
+  }
+  return ContentService.createTextOutput(JSON.stringify({status: "success"}))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+            """, language="javascript")
+            st.markdown("""
+            4. Fai clic sul pulsante **Distribuisci** in alto a destra -> **Nuova distribuzione**.
+            5. Configura così:
+               - **Seleziona tipo**: Web App (clicca sulla rotella delle impostazioni se non la vedi).
+               - **Esegui come**: Tu (tua mail).
+               - **Chi ha accesso**: Chiunque (questo è fondamentale affinché l'app Streamlit possa dialogare con il foglio).
+            6. Clicca su **Distribuisci**, autorizza l'accesso con la tua mail di Google e copia l'**URL della Web App** fornito alla fine.
+            7. Incolla quell'URL nel campo di testo qui sopra!
+            """)
 
     # --- GESTIONE / RIMOZIONE POSIZIONI ---
     if st.session_state['portfolio']:
