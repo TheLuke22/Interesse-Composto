@@ -2327,17 +2327,73 @@ elif page_choice == "📁 My Portfolio":
         with b_col2:
             st.markdown("#### Importa")
             st.write("Ripristina le tue posizioni caricando il tuo file di backup.")
-            uploaded_file = st.file_uploader("Scegli il file di backup (.json)", type=["json"], key="uploader_backup")
+            uploaded_file = st.file_uploader("Scegli il file di backup (.json, .csv)", type=["json", "csv"], key="uploader_backup")
             if uploaded_file is not None:
                 try:
-                    imported_portfolio = json.load(uploaded_file)
-                    if isinstance(imported_portfolio, list):
+                    file_extension = uploaded_file.name.split('.')[-1].lower()
+                    imported_portfolio = []
+                    
+                    if file_extension == 'json':
+                        imported_portfolio = json.load(uploaded_file)
+                        if not isinstance(imported_portfolio, list):
+                            st.error("Formato file non valido. Deve essere una lista JSON.")
+                            imported_portfolio = []
+                    elif file_extension == 'csv':
+                        df_csv = pd.read_csv(uploaded_file)
+                        
+                        # Mappa le colonne (cerca corrispondenze sia in inglese che in italiano)
+                        col_mapping = {
+                            'ticker': ['Ticker', 'ticker', 'TICKER'],
+                            'shares': ['Quantità', 'Quantita', 'shares', 'Shares', 'Quantity', 'qty', 'Qty'],
+                            'purchase_price': ["Prezzo d'Acquisto ($)", "Prezzo d'acquisto ($)", "Prezzo d'Acquisto", "Prezzo d'acquisto", "Prezzo Medio", "purchase_price", "Purchase Price", "purchasePrice", "price", "Price"]
+                        }
+                        
+                        ticker_col = None
+                        shares_col = None
+                        price_col = None
+                        
+                        for col in df_csv.columns:
+                            col_str = str(col).strip()
+                            if not ticker_col and col_str in col_mapping['ticker']:
+                                ticker_col = col
+                            if not shares_col and col_str in col_mapping['shares']:
+                                shares_col = col
+                            if not price_col and col_str in col_mapping['purchase_price']:
+                                price_col = col
+                                
+                        # Fallback agli indici se non trovate colonne mappate
+                        if not ticker_col and len(df_csv.columns) >= 1: ticker_col = df_csv.columns[0]
+                        if not shares_col and len(df_csv.columns) >= 2: shares_col = df_csv.columns[1]
+                        if not price_col and len(df_csv.columns) >= 3: price_col = df_csv.columns[2]
+                        
+                        if ticker_col and shares_col:
+                            for _, row in df_csv.iterrows():
+                                tk = str(row[ticker_col]).strip().upper()
+                                if tk and tk != "NAN" and tk != "":
+                                    # Gestisci valori nulli o non validi
+                                    try:
+                                        sh = float(row[shares_col]) if pd.notna(row[shares_col]) else 0.0
+                                    except:
+                                        sh = 0.0
+                                    try:
+                                        pr = float(row[price_col]) if price_col and pd.notna(row[price_col]) else 0.0
+                                    except:
+                                        pr = 0.0
+                                    imported_portfolio.append({
+                                        "ticker": tk,
+                                        "shares": sh,
+                                        "purchase_price": pr
+                                    })
+                        else:
+                            st.error("Colonne Ticker o Quantità non trovate nel file CSV.")
+                            
+                    if isinstance(imported_portfolio, list) and len(imported_portfolio) > 0:
                         st.session_state['portfolio'] = imported_portfolio
                         save_portfolio(imported_portfolio)
                         st.toast("Portafoglio importato con successo!", icon="✅")
                         st.rerun()
                     else:
-                        st.error("Formato file non valido. Deve essere una lista JSON.")
+                        st.error("Nessun dato valido trovato nel file.")
                 except Exception as e:
                     st.error(f"Errore durante l'importazione: {e}")
 
