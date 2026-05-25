@@ -2433,7 +2433,9 @@ elif page_choice == "📁 My Portfolio":
                     "Costo Totale ($)": shares * purchase_price,
                     "Valore Totale ($)": current_value,
                     "YOC (%)": yoc if (trailing_div_rate > 0.0) else 0.0,
-                    "YOC FWD (%)": yoc_fwd if (forward_div_rate > 0.0) else 0.0
+                    "Dividendi TTM ($)": shares * trailing_div_rate,
+                    "YOC FWD (%)": yoc_fwd if (forward_div_rate > 0.0) else 0.0,
+                    "Dividendi FWD ($)": shares * forward_div_rate
                 })
 
         df_portfolio = pd.DataFrame(portfolio_data)
@@ -2445,7 +2447,9 @@ elif page_choice == "📁 My Portfolio":
             "Costo Totale ($)": '${:,.2f}',
             "Valore Totale ($)": '${:,.2f}',
             "YOC (%)": "{:.2f}%",
-            "YOC FWD (%)": "{:.2f}%"
+            "Dividendi TTM ($)": '${:,.2f}',
+            "YOC FWD (%)": "{:.2f}%",
+            "Dividendi FWD ($)": '${:,.2f}'
         }), use_container_width=True, hide_index=True)
 
         # Calcolo YOC globali del portafoglio
@@ -2455,11 +2459,18 @@ elif page_choice == "📁 My Portfolio":
             portfolio_yoc = (total_trailing_dividends / total_portfolio_cost) * 100
             portfolio_yoc_fwd = (total_forward_dividends / total_portfolio_cost) * 100
 
-        # KPI Metrics
+        # KPI Metrics - Row 1 (Market Values & Yields)
         kpi_c1, kpi_c2, kpi_c3 = st.columns(3)
         kpi_c1.metric("Total Assets Under Management (AUM)", format_large_numbers(total_portfolio_value))
         kpi_c2.metric("Portfolio Yield on Cost (YOC)", f"{portfolio_yoc:.2f}%" if total_portfolio_cost > 0.0 else "0.00%")
         kpi_c3.metric("Portfolio YOC (FWD)", f"{portfolio_yoc_fwd:.2f}%" if total_portfolio_cost > 0.0 else "0.00%")
+
+        # KPI Metrics - Row 2 (Investment & Absolute Dividend Income)
+        st.write("")
+        kpi_d1, kpi_d2, kpi_d3 = st.columns(3)
+        kpi_d1.metric("Total Portfolio Cost", format_large_numbers(total_portfolio_cost))
+        kpi_d2.metric("Annual Dividend Income (TTM)", f"${total_trailing_dividends:,.2f}")
+        kpi_d3.metric("Annual Dividend Income (FWD)", f"${total_forward_dividends:,.2f}")
 
         st.divider()
         st.subheader("⚖️ Risk Concentration")
