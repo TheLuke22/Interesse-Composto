@@ -1059,13 +1059,14 @@ st.sidebar.markdown("""
 }
 
 /* Spazio extra per far respirare i titoli */
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(1) { margin-top: 40px; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(1) { margin-top: 30px; }
 [data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(2) { margin-top: 35px; }
 [data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(3) { margin-top: 35px; }
 [data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(4) { margin-top: 35px; }
 [data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(5) { margin-top: 35px; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(6) { margin-top: 55px; } /* Stacco lungo per linea divisoria Macro */
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(6) { margin-top: 35px; }
 [data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(7) { margin-top: 35px; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(8) { margin-top: 35px; }
 
 /* Formattazione Testo Titoli INIETTATI (non interagibili) */
 [data-testid="stSidebar"] div[role="radiogroup"] > label::before {
@@ -1080,22 +1081,15 @@ st.sidebar.markdown("""
     text-transform: uppercase;
 }
 
-/* Testi specifici dei titoli decorativi e linea separatrice */
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(1)::before { content: '🧮 Calculator'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(2)::before { content: '📉 Analytics'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(3)::before { content: '💼 Management'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(4)::before { content: '📰 Insights'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(5)::before { content: '👑 Hedge Funds'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(6)::before { 
-    content: '';
-    height: 1px;
-    background-color: rgba(255, 255, 255, 0.2);
-    top: -28px;
-    left: -15px;
-    right: -65px;
-}
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(7)::before { content: '🔍 Discovery'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(8)::before { content: '🧠 AI'; }
+/* Testi specifici dei titoli decorativi */
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(1)::before { content: '🏠 Overview'; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(2)::before { content: '🧮 Calculators'; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(3)::before { content: '📉 Analytics'; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(4)::before { content: '💼 Portfolio'; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(5)::before { content: '📰 Financial News'; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(6)::before { content: '👑 Hedge Funds'; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(7)::before { content: '🌍 Macro & Market'; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(8)::before { content: '🔍 Discovery'; }
 </style>
 <div class="sidebar-logo">
     <span class="intelligent">The Intelligent</span><br>
