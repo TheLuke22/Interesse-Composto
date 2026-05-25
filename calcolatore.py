@@ -2308,6 +2308,39 @@ elif page_choice == "📁 My Portfolio":
             except Exception as e:
                 st.error("Errore imprevisto durante la validazione. Riprova.")
 
+    # --- BACKUP / RECOVERY ---
+    with st.expander("💾 Salva / Carica Backup Portafoglio", expanded=False):
+        b_col1, b_col2 = st.columns(2)
+        
+        with b_col1:
+            st.markdown("#### Esporta")
+            st.write("Scarica un file di backup per salvare le tue posizioni sul tuo computer.")
+            portfolio_str = json.dumps(st.session_state['portfolio'], indent=2)
+            st.download_button(
+                label="📤 Scarica Backup Portafoglio (JSON)",
+                data=portfolio_str,
+                file_name="portfolio_backup.json",
+                mime="application/json",
+                key="btn_download_backup"
+            )
+            
+        with b_col2:
+            st.markdown("#### Importa")
+            st.write("Ripristina le tue posizioni caricando il tuo file di backup.")
+            uploaded_file = st.file_uploader("Scegli il file di backup (.json)", type=["json"], key="uploader_backup")
+            if uploaded_file is not None:
+                try:
+                    imported_portfolio = json.load(uploaded_file)
+                    if isinstance(imported_portfolio, list):
+                        st.session_state['portfolio'] = imported_portfolio
+                        save_portfolio(imported_portfolio)
+                        st.toast("Portafoglio importato con successo!", icon="✅")
+                        st.rerun()
+                    else:
+                        st.error("Formato file non valido. Deve essere una lista JSON.")
+                except Exception as e:
+                    st.error(f"Errore durante l'importazione: {e}")
+
     # --- GESTIONE / RIMOZIONE POSIZIONI ---
     if st.session_state['portfolio']:
         with st.expander("⚙️ Gestisci / Rimuovi Posizione", expanded=False):
