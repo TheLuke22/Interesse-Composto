@@ -3087,7 +3087,11 @@ elif page_choice == "🌍 Macro & Market":
             "Nasdaq 100": "^NDX",
             "US 10Y Treasury (Risk-Free)": "^TNX",
             "VIX (Fear Index)": "^VIX",
-            "Oro (Bene Rifugio)": "GC=F"
+            "Oro (Bene Rifugio)": "GC=F",
+            "Argento (Metallo Prezioso)": "SI=F",
+            "Petrolio Brent (Energia)": "BZ=F",
+            "Petrolio WTI (Energia)": "CL=F",
+            "EUR/USD (Valuta)": "EURUSD=X"
         }
         
         macro_data = {}
@@ -3104,12 +3108,29 @@ elif page_choice == "🌍 Macro & Market":
             for j, (name, series) in enumerate(chunk):
                 with cols[j]:
                     val = series.iloc[-1]
-                    prev = series.iloc[-2]
-                    pct = ((val - prev)/prev)*100
-                    st.metric(name, f"{val:.2f}", f"{pct:.2f}%")
+                    prev = series.iloc[-2] if len(series) > 1 else val
+                    pct = ((val - prev)/prev)*100 if prev != 0 else 0.0
+                    
+                    # Formattazione decimale ad alta precisione per EUR/USD
+                    if "EUR/USD" in name:
+                        st.metric(name, f"{val:.4f}", f"{pct:.2f}%")
+                    else:
+                        st.metric(name, f"{val:.2f}", f"{pct:.2f}%")
+                    
+                    # Sparkline premium, trasparente e con colore adattivo al trend
+                    color = "#2ECC71" if pct >= 0 else "#E74C3C"
                     fig = px.line(series, x=series.index, y=series.values)
-                    fig.update_layout(xaxis_visible=False, yaxis_visible=False, height=150, margin=dict(l=0, r=0, t=45, b=0), showlegend=False)
-                    st.plotly_chart(fig, use_container_width=True)
+                    fig.update_traces(line_color=color, line_width=2.5)
+                    fig.update_layout(
+                        xaxis_visible=False,
+                        yaxis_visible=False,
+                        height=150,
+                        margin=dict(l=0, r=0, t=45, b=0),
+                        showlegend=False,
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(0,0,0,0)"
+                    )
+                    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
             
             st.write("") # Spazio extra verticale
             st.write("")
