@@ -73,6 +73,98 @@ def local_css(file_name):
 
 local_css("style.css")
 
+# --- HELPER FUNCTIONS FOR PREMIUM UI/UX & CHARTS ---
+def render_custom_metric(label, value, delta=None, icon=None, is_positive=None):
+    """
+    Genera una KPI Card personalizzata con Glassmorphism Plus, Neon Glow ed icone.
+    """
+    if is_positive is None:
+        if delta:
+            clean_delta = str(delta).strip()
+            if clean_delta.startswith('-'):
+                is_positive = False
+            elif clean_delta.startswith('+') or any(char.isdigit() for char in clean_delta):
+                is_positive = True
+            else:
+                is_positive = True
+        else:
+            is_positive = True
+
+    trend_class = "trend-up" if is_positive else "trend-down"
+    arrow = "▲" if is_positive else "▼"
+    delta_color = "#00FF7F" if is_positive else "#FF3B30"
+    glow_color = "rgba(0, 255, 127, 0.15)" if is_positive else "rgba(255, 59, 48, 0.15)"
+    rgb_values = "0,255,127" if is_positive else "255,59,48"
+    
+    icon_html = f'<span style="font-size: 22px;">{icon}</span>' if icon else ''
+    
+    delta_html = ""
+    if delta:
+        delta_html = f"""
+        <div style="color: {delta_color}; font-weight: 600; font-size: 14px; margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; background: {glow_color}; border: 1px solid rgba({rgb_values}, 0.2); border-radius: 6px; box-shadow: 0 0 10px {glow_color};">
+            <span style="font-size: 10px;">{arrow}</span> {delta}
+        </div>
+        """
+        
+    html = f"""
+    <div class="custom-kpi-card">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <div style="font-size: 13px; font-weight: 500; color: #8A929A; text-transform: uppercase; letter-spacing: 0.5px;">{label}</div>
+            {icon_html}
+        </div>
+        <div style="font-size: 28px; font-weight: 700; color: #ffffff; margin-top: 10px; letter-spacing: -0.5px; text-shadow: 0 0 12px rgba(255,255,255,0.08);">{value}</div>
+        {delta_html}
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def apply_premium_chart_theme(fig, is_sparkline=False):
+    """
+    Applica un tema Plotly scuro istituzionale, trasparente ed elegante.
+    """
+    is_spark = is_sparkline
+    if hasattr(fig, 'layout') and fig.layout:
+        if hasattr(fig.layout, 'xaxis') and fig.layout.xaxis and fig.layout.xaxis.visible is False:
+            is_spark = True
+            
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, sans-serif", color="#CBD5E1"),
+        title_font=dict(family="Outfit, sans-serif", size=16, color="#FFFFFF"),
+        legend=dict(
+            bgcolor="rgba(0,0,0,0)",
+            bordercolor="rgba(255,255,255,0.1)",
+            font=dict(color="#CBD5E1")
+        )
+    )
+    
+    if is_spark:
+        fig.update_layout(margin=dict(l=0, r=0, t=10, b=0))
+    else:
+        fig.update_layout(margin=dict(l=10, r=10, t=40, b=10))
+        fig.update_xaxes(
+            gridcolor="rgba(255, 255, 255, 0.06)",
+            linecolor="rgba(255, 255, 255, 0.12)",
+            tickfont=dict(family="Inter, sans-serif", size=11, color="#94A3B8"),
+            zeroline=False
+        )
+        fig.update_yaxes(
+            gridcolor="rgba(255, 255, 255, 0.06)",
+            linecolor="rgba(255, 255, 255, 0.12)",
+            tickfont=dict(family="Inter, sans-serif", size=11, color="#94A3B8"),
+            zeroline=False
+        )
+    return fig
+
+# Override st.plotly_chart per applicare automaticamente il tema a ogni grafico
+_original_plotly_chart = st.plotly_chart
+def custom_plotly_chart(fig, *args, **kwargs):
+    fig = apply_premium_chart_theme(fig)
+    return _original_plotly_chart(fig, *args, **kwargs)
+st.plotly_chart = custom_plotly_chart
+
 # Custom CSS per look "Fintech Premium Glassmorphic" e "Marquee"
 # Custom CSS per look "Institutional Premium" e Leggibilità Avanzata
 st.markdown(f"""
@@ -1030,32 +1122,38 @@ st.sidebar.markdown("""
 }
 /* Stile base delle schede di navigazione */
 [data-testid="stSidebar"] [data-baseweb="radio"] {
-    padding: 10px 14px;
-    margin-bottom: 6px;
-    border-radius: 4px;
-    transition: background-color 0.2s;
-    position: relative;
-    cursor: pointer;
+    padding: 12px 16px !important;
+    margin-bottom: 8px !important;
+    border-radius: 10px !important;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    position: relative !important;
+    cursor: pointer !important;
+    background: rgba(255, 255, 255, 0.02) !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 
-/* Nascondi i cerchi nativi di Streamlit per un look piatto da menu a tendina */
+/* Nascondi i cerchi nativi di Streamlit */
 [data-testid="stSidebar"] [data-baseweb="radio"] > div:first-child {
     display: none !important;
 }
 
-/* Hover pulito per i bottoni in Dark Mode */
+/* Hover pulito per i bottoni con micro-spostamento laterale e bagliore ciano */
 [data-testid="stSidebar"] [data-baseweb="radio"]:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(255, 255, 255, 0.06) !important;
+    border-color: rgba(0, 242, 254, 0.3) !important;
+    transform: translateX(4px) !important;
 }
 
-/* Elemento attivo: Arancione Seeking Alpha */
+/* Elemento attivo: Gradiente Ciano/Blu Neon */
 [data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) {
-    background-color: rgba(242, 114, 0, 0.1) !important;
-    border-left: 4px solid #f27200;
+    background: linear-gradient(135deg, rgba(79, 172, 254, 0.12) 0%, rgba(0, 242, 254, 0.12) 100%) !important;
+    border: 1px solid rgba(0, 242, 254, 0.4) !important;
+    border-left: 4px solid #00f2fe !important;
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.1) !important;
 }
 [data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) p {
-    color: #f27200;
-    font-weight: 700;
+    color: #00f2fe !important;
+    font-weight: 700 !important;
 }
 
 /* Spazio extra per far respirare i titoli */
@@ -2241,13 +2339,13 @@ elif page_choice == "📊 Stock Tracker":
                     st.subheader("Financial Highlights")
                     h1, h2, h3 = st.columns(3)
                     with h1:
-                        st.metric("Profit Margin", format_perc(info.get('profitMargins')))
-                        st.metric("ROE (ttm)", format_perc(info.get('returnOnEquity')))
+                        render_custom_metric("Profit Margin", format_perc(info.get('profitMargins')), icon="💰")
+                        render_custom_metric("ROE (ttm)", format_perc(info.get('returnOnEquity')), icon="📈")
                     with h2:
-                        st.metric("Total Cash", format_large_numbers(info.get('totalCash')))
-                        st.metric("Debt/Equity", info.get('debtToEquity', 'N/A'))
+                        render_custom_metric("Total Cash", format_large_numbers(info.get('totalCash')), icon="💵")
+                        render_custom_metric("Debt/Equity", str(info.get('debtToEquity', 'N/A')), icon="⚖️")
                     with h3:
-                        st.metric("Free Cash Flow", format_large_numbers(info.get('leveredFreeCashFlow')))
+                        render_custom_metric("Free Cash Flow", format_large_numbers(info.get('leveredFreeCashFlow')), icon="💸")
                         
                     st.divider()
                     st.subheader("📑 Full Financial Statements (Annual)")
@@ -2330,9 +2428,12 @@ elif page_choice == "📊 Stock Tracker":
                                 if raw_fair_value < 0:
                                     st.info(f"Nota: Il valore teorico del capitale netto sarebbe negativo (${raw_fair_value:,.2f}), limitato a zero nel calcolo.")
                                 
-                                st.metric("Fair Value per Azione Stimato", f"${fair_value:,.2f}")
                                 margin_of_safety = ((fair_value - rt_price) / fair_value) if fair_value > 0 else 0
-                                st.metric("Margine di Sicurezza", f"{margin_of_safety*100:.2f}%")
+                                fv_col1, fv_col2 = st.columns(2)
+                                with fv_col1:
+                                    render_custom_metric("Fair Value per Azione Stimato", f"${fair_value:,.2f}", icon="🎯")
+                                with fv_col2:
+                                    render_custom_metric("Margine di Sicurezza", f"{margin_of_safety*100:.2f}%", icon="🛡️", is_positive=(margin_of_safety > 0))
                                 
                                 if fair_value == 0:
                                     st.error("🔴 Il Fair Value teorico è zero (o inferiore) a causa di flussi di cassa negativi o debito eccessivo.")
@@ -3111,11 +3212,19 @@ elif page_choice == "🌍 Macro & Market":
                     prev = series.iloc[-2] if len(series) > 1 else val
                     pct = ((val - prev)/prev)*100 if prev != 0 else 0.0
                     
+                    # Rilevamento icona in base al nome dell'asset macro
+                    m_icon = "🌍"
+                    if "Oro" in name: m_icon = "🪙"
+                    elif "Argento" in name: m_icon = "💿"
+                    elif "Petrolio" in name: m_icon = "⛽"
+                    elif "EUR/USD" in name: m_icon = "💱"
+                    
                     # Formattazione decimale ad alta precisione per EUR/USD
                     if "EUR/USD" in name:
-                        st.metric(name, f"{val:.4f}", f"{pct:.2f}%")
+                        render_custom_metric(name, f"{val:.4f}", f"{pct:+.2f}%", icon=m_icon, is_positive=(pct >= 0))
                     else:
-                        st.metric(name, f"{val:.2f}", f"{pct:.2f}%")
+                        formatted_val = f"${val:,.2f}" if ("Oro" in name or "Argento" in name or "Petrolio" in name) else f"{val:,.2f}"
+                        render_custom_metric(name, formatted_val, f"{pct:+.2f}%", icon=m_icon, is_positive=(pct >= 0))
                     
                     # Sparkline premium, trasparente e con colore adattivo al trend
                     color = "#2ECC71" if pct >= 0 else "#E74C3C"
@@ -3446,7 +3555,7 @@ elif page_choice == "👑 Super Investors":
             st.markdown(f"<p style='color: #A0A0A0; font-size: 16px; margin-bottom: 20px;'><i>{bios[inv_name]}</i></p>", unsafe_allow_html=True)
             
         if inv_name in aum_map:
-            st.metric(label="📊 Asset Under Management (13F)", value=aum_map[inv_name])
+            render_custom_metric("Asset Under Management (13F)", aum_map[inv_name], icon="💼")
             
         st.divider()
         
