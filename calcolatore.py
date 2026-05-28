@@ -127,52 +127,39 @@ def apply_premium_chart_theme(fig, is_sparkline=False):
     if hasattr(fig, 'layout') and fig.layout:
         if hasattr(fig.layout, 'xaxis') and fig.layout.xaxis and fig.layout.xaxis.visible is False:
             is_spark = True
-            
-    # Determina se il grafico ha un titolo reale impostato per evitare la scritta "undefined"
-    has_title = False
-    if hasattr(fig, 'layout') and fig.layout and fig.layout.title:
-        title_layout = fig.layout.title
-        if isinstance(title_layout, str) and title_layout.strip():
-            has_title = True
-        elif hasattr(title_layout, 'text') and title_layout.text:
-            has_title = True
-        elif isinstance(title_layout, dict) and title_layout.get('text'):
-            has_title = True
-            
+
+    # Impostazioni di stile base trasparenti e di font globale
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Inter, sans-serif", color="#CBD5E1"),
-        legend=dict(
-            bgcolor="rgba(0,0,0,0)",
-            bordercolor="rgba(255,255,255,0.1)",
-            font=dict(color="#CBD5E1")
-        )
+        font=dict(family="Inter, sans-serif", color="#CBD5E1")
     )
     
-    if has_title:
+    # Applica lo stile tipografico al titolo solo se il testo del titolo è effettivamente presente
+    if hasattr(fig, 'layout') and fig.layout and fig.layout.title and getattr(fig.layout.title, 'text', None):
         fig.update_layout(
             title_font=dict(family="Outfit, sans-serif", size=16, color="#FFFFFF")
         )
-    else:
-        fig.layout.title = None
-    
+
     if is_spark:
         fig.update_layout(margin=dict(l=0, r=0, t=10, b=0))
     else:
         fig.update_layout(margin=dict(l=10, r=10, t=40, b=10))
-        fig.update_xaxes(
-            gridcolor="rgba(255, 255, 255, 0.06)",
-            linecolor="rgba(255, 255, 255, 0.12)",
-            tickfont=dict(family="Inter, sans-serif", size=11, color="#94A3B8"),
-            zeroline=False
-        )
-        fig.update_yaxes(
-            gridcolor="rgba(255, 255, 255, 0.06)",
-            linecolor="rgba(255, 255, 255, 0.12)",
-            tickfont=dict(family="Inter, sans-serif", size=11, color="#94A3B8"),
-            zeroline=False
-        )
+        try:
+            fig.update_xaxes(
+                gridcolor="rgba(255, 255, 255, 0.06)",
+                linecolor="rgba(255, 255, 255, 0.12)",
+                tickfont=dict(family="Inter, sans-serif", size=11, color="#94A3B8"),
+                zeroline=False
+            )
+            fig.update_yaxes(
+                gridcolor="rgba(255, 255, 255, 0.06)",
+                linecolor="rgba(255, 255, 255, 0.12)",
+                tickfont=dict(family="Inter, sans-serif", size=11, color="#94A3B8"),
+                zeroline=False
+            )
+        except Exception:
+            pass
     return fig
 
 # Override st.plotly_chart per applicare automaticamente il tema a ogni grafico
