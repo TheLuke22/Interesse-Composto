@@ -128,17 +128,32 @@ def apply_premium_chart_theme(fig, is_sparkline=False):
         if hasattr(fig.layout, 'xaxis') and fig.layout.xaxis and fig.layout.xaxis.visible is False:
             is_spark = True
             
+    # Determina se il grafico ha un titolo reale impostato per evitare la scritta "undefined"
+    has_title = False
+    if hasattr(fig, 'layout') and fig.layout and fig.layout.title:
+        title_layout = fig.layout.title
+        if isinstance(title_layout, str) and title_layout.strip():
+            has_title = True
+        elif hasattr(title_layout, 'text') and title_layout.text:
+            has_title = True
+        elif isinstance(title_layout, dict) and title_layout.get('text'):
+            has_title = True
+            
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Inter, sans-serif", color="#CBD5E1"),
-        title_font=dict(family="Outfit, sans-serif", size=16, color="#FFFFFF"),
         legend=dict(
             bgcolor="rgba(0,0,0,0)",
             bordercolor="rgba(255,255,255,0.1)",
             font=dict(color="#CBD5E1")
         )
     )
+    
+    if has_title:
+        fig.update_layout(
+            title_font=dict(family="Outfit, sans-serif", size=16, color="#FFFFFF")
+        )
     
     if is_spark:
         fig.update_layout(margin=dict(l=0, r=0, t=10, b=0))
