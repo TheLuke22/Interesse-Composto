@@ -154,6 +154,8 @@ def apply_premium_chart_theme(fig, is_sparkline=False):
         fig.update_layout(
             title_font=dict(family="Outfit, sans-serif", size=16, color="#FFFFFF")
         )
+    else:
+        fig.layout.title = None
     
     if is_spark:
         fig.update_layout(margin=dict(l=0, r=0, t=10, b=0))
