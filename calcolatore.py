@@ -191,6 +191,74 @@ def render_premium_portfolio_table(holdings):
     st.markdown(clean_html, unsafe_allow_html=True)
 
 
+def render_premium_screener_table(df):
+    """
+    Genera una tabella per lo Stock Screener in HTML/CSS premium,
+    con badge colorati per i ticker, progress bar per i dividendi e status colorati per il P/E.
+    """
+    html = """
+    <table class="premium-portfolio-table">
+        <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Azienda</th>
+                <th style="text-align: right;">Prezzo</th>
+                <th style="text-align: right;">P/E Ratio</th>
+                <th style="text-align: right;">Div Yield %</th>
+                <th style="text-align: right;">Market Cap (Mld $)</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
+    for _, row in df.iterrows():
+        ticker = row.get('Ticker', 'N/A')
+        azienda = row.get('Azienda', 'N/A')
+        pe = row.get('P/E', None)
+        div = row.get('Div Yield %', 0.0)
+        mcap = row.get('Market Cap (B)', 0.0)
+        prezzo = row.get('Prezzo', 'N/A')
+        
+        # Formattazione prezzo
+        formatted_price = f"${prezzo:,.2f}" if isinstance(prezzo, (int, float)) else str(prezzo)
+        if isinstance(prezzo, str) and not prezzo.startswith('$') and prezzo != 'N/A':
+            try:
+                formatted_price = f"${float(prezzo):,.2f}"
+            except:
+                pass
+                
+        # Status P/E
+        if pe is None or str(pe) == 'nan':
+            pe_html = '<span style="color: #8A929A;">N/A</span>'
+        else:
+            if pe < 15:
+                pe_html = f'<span style="color: #00FF7F; font-weight: 700; background: rgba(0, 255, 127, 0.1); border: 1px solid rgba(0, 255, 127, 0.2); padding: 3px 8px; border-radius: 6px;">{pe:.2f}</span>'
+            elif pe <= 25:
+                pe_html = f'<span style="color: #FFAB00; font-weight: 700; background: rgba(255, 171, 0, 0.1); border: 1px solid rgba(255, 171, 0, 0.2); padding: 3px 8px; border-radius: 6px;">{pe:.2f}</span>'
+            else:
+                pe_html = f'<span style="color: #FF3B30; font-weight: 700; background: rgba(255, 59, 48, 0.1); border: 1px solid rgba(255, 59, 48, 0.2); padding: 3px 8px; border-radius: 6px;">{pe:.2f}</span>'
+
+        # Div Yield
+        div_html = f'<span style="color: #00f2fe; font-weight: 700;">{div:.2f}%</span>' if div > 0 else '<span style="color: #8A929A;">0.00%</span>'
+        
+        html += f"""
+        <tr>
+            <td><span class="ticker-badge">{ticker}</span></td>
+            <td class="company-name">{azienda}</td>
+            <td style="text-align: right; font-weight: 600; color: #ffffff;">{formatted_price}</td>
+            <td style="text-align: right;">{pe_html}</td>
+            <td style="text-align: right;">{div_html}</td>
+            <td style="text-align: right; font-weight: 700; color: #ffffff;">${mcap:,.2f}B</td>
+        </tr>
+        """
+    html += """
+        </tbody>
+    </table>
+    """
+    # Rimuove gli spazi iniziali da ogni riga per evitare che il markdown interpreti l'HTML come blocco di codice preformattato
+    clean_html = "\n".join([line.strip() for line in html.split("\n")])
+    st.markdown(clean_html, unsafe_allow_html=True)
+
+
 def apply_premium_chart_theme(fig, is_sparkline=False):
     """
     Applica un tema Plotly scuro istituzionale, trasparente ed elegante.
@@ -3402,7 +3470,7 @@ elif page_choice == "🔍 Stock Screener":
                 if screener_res:
                     df_screen = pd.DataFrame(screener_res).sort_values(by="Div Yield %", ascending=False)
                     st.success(f"Trovate {len(screener_res)} aziende che rispettano i tuoi parametri istituzionali.")
-                    st.dataframe(df_screen, use_container_width=True, hide_index=True)
+                    render_premium_screener_table(df_screen)
                     
                     if len(df_screen) >= 4:
                         st.subheader("🧲 K-Means AI Clustering (S&P 500)")
