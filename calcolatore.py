@@ -1347,7 +1347,7 @@ page_choice = st.sidebar.radio("Tool:", [
     "👑 Super Investors", 
     "🌍 Macro & Market", 
     "🔍 Stock Screener"
-], label_visibility="collapsed")
+], label_visibility="collapsed", key="navigation_page")
 
 
 # ==========================================
@@ -1784,7 +1784,8 @@ elif page_choice == "📊 Stock Tracker":
 
     with st.form("stock_tracker_form", enter_to_submit=True):
         col1, col2, col3, col4 = st.columns(4)
-        with col1: ticker_input = st.text_input("Stock Ticker", value="KO").upper()
+        default_ticker = st.session_state.get('active_ticker', 'KO')
+        with col1: ticker_input = st.text_input("Stock Ticker", value=default_ticker).upper()
         with col2: invested_cap = st.number_input("Initial Investment ($)", min_value=100.0, value=1000.0)
         with col3: backtest_years = st.slider("Years of History", min_value=1, max_value=20, value=10)
         with col4: benchmark_ticker = st.text_input("Benchmark (Compare)", value="SPY").upper()
@@ -3471,6 +3472,22 @@ elif page_choice == "🔍 Stock Screener":
                     df_screen = pd.DataFrame(screener_res).sort_values(by="Div Yield %", ascending=False)
                     st.success(f"Trovate {len(screener_res)} aziende che rispettano i tuoi parametri istituzionali.")
                     render_premium_screener_table(df_screen)
+                    
+                    st.write("")
+                    col_sel1, col_sel2 = st.columns([2.5, 1])
+                    with col_sel1:
+                        ticker_to_track = st.selectbox(
+                            "🔍 Vuoi analizzare un titolo in dettaglio? Selezionalo da qui:", 
+                            options=df_screen['Ticker'].tolist(),
+                            key="screener_ticker_selection"
+                        )
+                    with col_sel2:
+                        st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) # Allineamento perfetto orizzontale
+                        if st.button("📊 Analizza in Stock Tracker", use_container_width=True, type="primary"):
+                            st.session_state['active_ticker'] = ticker_to_track
+                            st.session_state['navigation_page'] = "📊 Stock Tracker"
+                            st.toast(f"Caricamento analisi per {ticker_to_track} in corso...", icon="📊")
+                            st.rerun()
                     
                     if len(df_screen) >= 4:
                         st.subheader("🧲 K-Means AI Clustering (S&P 500)")
