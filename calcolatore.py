@@ -3684,66 +3684,66 @@ elif page_choice == "👑 Super Investors":
             super_data = [
                 {
                     "name": "Warren Buffett", "company": "Berkshire Hathaway", 
-                    "perf": "26.17%", "size": "$274.1B", 
+                    "perf": "26.17%", "size": "$263.1B", 
                     "categories": ["🌟 Popular", "🏛️ Value Investors", "⏳ Long-Term"],
-                    "holdings": [("AAPL", "Apple", "#000000"), ("AXP", "American Express", "#006fcf"), ("BAC", "Bank of America", "#E31837")],
-                    "more": 39
+                    "holdings": [("AAPL", "Apple Inc.", "#000000"), ("AXP", "American Express", "#006fcf"), ("KO", "Coca-Cola", "#E30016")],
+                    "more": 24
                 },
                 {
                     "name": "Michael Burry", "company": "Scion Asset Management", 
-                    "perf": "28.20%", "size": "$54.9M", 
+                    "perf": "28.20%", "size": "$93.9M", 
                     "categories": ["🌟 Popular", "📉 Contrarians / Short"],
-                    "holdings": [("MOH", "Molina Healthcare", "#00A99D"), ("LULU", "Lululemon Athletica", "#E60028"), ("SLM", "SLM", "#004B87")],
-                    "more": 0
+                    "holdings": [("MOH", "Molina Healthcare", "#00A99D"), ("LULU", "Lululemon Athletica", "#E60028"), ("SLM", "SLM Corp.", "#004B87")],
+                    "more": 3
                 },
                 {
                     "name": "Cathie Wood", "company": "ARK Invest", 
-                    "perf": "48.75%", "size": "$13.4B", 
+                    "perf": "48.75%", "size": "$12.86B", 
                     "categories": ["🌟 Popular", "📈 Best Performance", "🚀 Growth Investors"],
-                    "holdings": [("TSLA", "Tesla", "#E82127"), ("COIN", "Coinbase", "#0052FF"), ("ROKU", "Roku", "#662D91")],
-                    "more": 180
+                    "holdings": [("TSLA", "Tesla", "#E82127"), ("AMD", "Advanced Micro Devices", "#FF0000"), ("CRCL", "Circle Internet Group", "#0052FF")],
+                    "more": 10
                 },
                 {
                     "name": "Bill Ackman", "company": "Pershing Square", 
-                    "perf": "31.42%", "size": "$10.5B", 
+                    "perf": "31.42%", "size": "$13.71B", 
                     "categories": ["🌟 Popular", "📈 Best Performance", "🏛️ Value Investors"],
-                    "holdings": [("BN", "Brookfield Corp", "#002F6C"), ("UBER", "Uber", "#000000"), ("AMZN", "Amazon", "#FF9900")],
-                    "more": 4
+                    "holdings": [("BN", "Brookfield Corp", "#002F6C"), ("AMZN", "Amazon", "#FF9900"), ("UBER", "Uber", "#000000")],
+                    "more": 5
                 },
                 {
                     "name": "David Tepper", "company": "Appaloosa Management", 
-                    "perf": "35.10%", "size": "$5.9B", 
+                    "perf": "35.10%", "size": "$5.93B", 
                     "categories": ["🌟 Popular", "📈 Best Performance", "🚀 Growth Investors"],
-                    "holdings": [("BABA", "Alibaba Group", "#FF6A00"), ("GOOG", "Alphabet Inc.", "#DB4437"), ("AMZN", "Amazon", "#FF9900")],
-                    "more": 25
+                    "holdings": [("AMZN", "Amazon", "#FF9900"), ("MU", "Micron Technology", "#0066CC"), ("GOOG", "Alphabet Inc.", "#DB4437")],
+                    "more": 12
                 },
                 {
                     "name": "Ray Dalio", "company": "Bridgewater Associates", 
-                    "perf": "14.80%", "size": "$19.6B", 
+                    "perf": "14.80%", "size": "$22.40B", 
                     "categories": ["🌟 Popular", "⏳ Long-Term"],
-                    "holdings": [("IVV", "iShares S&P 500", "#000000"), ("IEMG", "iShares MSCI EM", "#000000"), ("SPY", "SPDR S&P 500", "#0B2664")],
-                    "more": 450
+                    "holdings": [("SPY", "SPDR S&P 500", "#0B2664"), ("IVV", "iShares Core S&P 500", "#000000"), ("AMZN", "Amazon", "#FF9900")],
+                    "more": 12
                 },
                 {
                     "name": "Stanley Druckenmiller", "company": "Duquesne Family Office", 
-                    "perf": "41.60%", "size": "$4.5B", 
+                    "perf": "41.60%", "size": "$3.38B", 
                     "categories": ["🌟 Popular", "📈 Best Performance", "🚀 Growth Investors"],
-                    "holdings": [("NTRA", "Natera", "#00A9E0"), ("XLF", "Fin Select SPDR", "#000000"), ("INSM", "Insmed", "#8A929A")],
-                    "more": 42
+                    "holdings": [("NTRA", "Natera", "#00A9E0"), ("EWZ", "iShares MSCI Brazil", "#008000"), ("INSM", "Insmed", "#8A929A")],
+                    "more": 11
                 },
                 {
                     "name": "Ken Griffin", "company": "Citadel Advisors", 
                     "perf": "21.30%", "size": "$96.4B", 
                     "categories": ["🌟 Popular", "📉 Contrarians / Short", "⏳ Long-Term"],
                     "holdings": [("SPY", "SPDR S&P 500", "#0B2664"), ("QQQ", "Invesco QQQ", "#000000"), ("NVDA", "NVIDIA", "#76B900")],
-                    "more": 4500
+                    "more": 6
                 },
                 {
                     "name": "Carl Icahn", "company": "Icahn Enterprises", 
-                    "perf": "12.40%", "size": "$12.1B", 
+                    "perf": "12.40%", "size": "$8.55B", 
                     "categories": ["🌟 Popular", "🏛️ Value Investors", "📉 Contrarians / Short"],
-                    "holdings": [("IEP", "Icahn Ent.", "#000000"), ("OXY", "Occidental", "#E31837"), ("CVI", "CVR Energy", "#006fcf")],
-                    "more": 12
+                    "holdings": [("IEP", "Icahn Enterprises", "#000000"), ("CVI", "CVR Energy", "#006fcf"), ("UAN", "CVR Partners LP", "#008000")],
+                    "more": 9
                 }
             ]
             
