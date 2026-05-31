@@ -116,7 +116,9 @@ def render_custom_metric(label, value, delta=None, icon=None, is_positive=None):
         {delta_html}
     </div>
     """
-    st.markdown(html, unsafe_allow_html=True)
+    # Rimuove gli spazi iniziali da ogni riga per evitare che il markdown interpreti l'HTML come blocco di codice preformattato
+    clean_html = "\n".join([line.strip() for line in html.split("\n")])
+    st.markdown(clean_html, unsafe_allow_html=True)
 
 
 def render_premium_portfolio_table(holdings):
