@@ -52,6 +52,16 @@ if "ticker" in st.query_params:
         # Clear query parameters to update browser URL and avoid routing loops
         st.query_params.clear()
         st.rerun()
+# --- INIZIALIZZAZIONE SESSION STATE PER STOCK TRACKER ---
+if 'active_ticker' not in st.session_state:
+    st.session_state['active_ticker'] = 'KO'
+if 'active_cap' not in st.session_state:
+    st.session_state['active_cap'] = 1000.0
+if 'active_years' not in st.session_state:
+    st.session_state['active_years'] = 10
+if 'active_bench' not in st.session_state:
+    st.session_state['active_bench'] = "SPY"
+
 
 
 # --- MOTORE PER MARQUEE DATA ---
@@ -1812,10 +1822,11 @@ elif page_choice == "📊 Stock Tracker":
         # Salviamo i parametri in sessione per non perderli al ricarico della pagina (es. al toggle DRIP)
         submitted = st.form_submit_button("🚀 Run Deep Analysis", type="primary", use_container_width=True)
         if submitted:
-            st.session_state['active_ticker'] = ticker_input
+            st.session_state['active_ticker'] = ticker_input.strip().upper()
             st.session_state['active_cap'] = invested_cap
             st.session_state['active_years'] = backtest_years
-            st.session_state['active_bench'] = benchmark_ticker
+            st.session_state['active_bench'] = benchmark_ticker.strip().upper()
+            st.rerun()
 
     if 'active_ticker' in st.session_state:
         a_ticker = st.session_state['active_ticker']
