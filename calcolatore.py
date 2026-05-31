@@ -119,6 +119,74 @@ def render_custom_metric(label, value, delta=None, icon=None, is_positive=None):
     st.markdown(html, unsafe_allow_html=True)
 
 
+def render_premium_portfolio_table(holdings):
+    """
+    Genera una tabella di portafoglio HTML/CSS premium con progress bar per l'allocazione,
+    badge colorati per i ticker e pillole colorate per i settori merceologici.
+    """
+    html = """
+    <table class="premium-portfolio-table">
+        <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Azienda</th>
+                <th>Settore</th>
+                <th style="text-align: right;">Quote</th>
+                <th style="text-align: right;">Valore 13F</th>
+                <th style="text-align: right; width: 180px;">Peso Portafoglio</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
+    for h in holdings:
+        ticker = h.get('Ticker', 'N/A')
+        azienda = h.get('Azienda', 'N/A')
+        settore = h.get('Settore', 'N/A')
+        alloc = h.get('Allocazione %', 0.0)
+        quote = h.get('Quote', 'N/A')
+        valore = h.get('Valore', 'N/A')
+        
+        # Determina classe CSS in base al settore
+        sec_clean = settore.lower().strip()
+        if 'tech' in sec_clean or 'software' in sec_clean or 'crypto' in sec_clean:
+            sec_class = "sector-technology"
+        elif 'financial' in sec_clean:
+            sec_class = "sector-financial"
+        elif 'consumer' in sec_clean or 'retail' in sec_clean or 'auto' in sec_clean or 'e-commerce' in sec_clean:
+            sec_class = "sector-consumer"
+        elif 'energy' in sec_clean or 'utilities' in sec_clean:
+            sec_class = "sector-energy"
+        elif 'health' in sec_clean:
+            sec_class = "sector-health"
+        elif 'industrial' in sec_clean or 'materials' in sec_clean:
+            sec_class = "sector-industrial"
+        else:
+            sec_class = "sector-default"
+            
+        html += f"""
+        <tr>
+            <td><span class="ticker-badge">{ticker}</span></td>
+            <td class="company-name">{azienda}</td>
+            <td><span class="sector-pill {sec_class}">{settore}</span></td>
+            <td style="text-align: right; font-weight: 500; color: #CBD5E1;">{quote}</td>
+            <td style="text-align: right; font-weight: 700; color: #ffffff;">{valore}</td>
+            <td>
+                <div class="allocation-bar-container">
+                    <div class="allocation-bar-bg">
+                        <div class="allocation-bar-fill" style="width: {alloc}%;"></div>
+                    </div>
+                    <span class="allocation-text">{alloc:.2f}%</span>
+                </div>
+            </td>
+        </tr>
+        """
+    html += """
+        </tbody>
+    </table>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
+
 def apply_premium_chart_theme(fig, is_sparkline=False):
     """
     Applica un tema Plotly scuro istituzionale, trasparente ed elegante.
@@ -3568,8 +3636,7 @@ elif page_choice == "👑 Super Investors":
             
             c1, c2 = st.columns([1.5, 1])
             with c1:
-                st.subheader("📋 Top Holdings (13F Filings)")
-                st.dataframe(df_port, use_container_width=True, hide_index=True)
+                render_premium_portfolio_table(portfolio_details[inv_name])
                 
             with c2:
                 st.subheader("🥧 Allocazione Asset")

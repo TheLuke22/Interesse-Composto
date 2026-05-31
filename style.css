@@ -194,3 +194,110 @@
     box-shadow: 0 0 10px rgba(255, 59, 48, 0.08) !important;
 }
 
+/* Premium Institutional Portfolio Table Styles */
+.premium-portfolio-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Inter', sans-serif;
+    color: #E2E8F0;
+    background: rgba(255, 255, 255, 0.01) !important;
+    border-radius: 16px !important;
+    overflow: hidden;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    margin: 10px 0 25px 0;
+}
+
+.premium-portfolio-table th {
+    background-color: rgba(255, 255, 255, 0.03) !important;
+    text-align: left;
+    padding: 14px 18px;
+    color: #8A929A !important;
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 1px;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.premium-portfolio-table td {
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.premium-portfolio-table tbody tr {
+    transition: all 0.2s ease;
+}
+
+.premium-portfolio-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Ticker Badge */
+.ticker-badge {
+    background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+    color: #ffffff !important;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+    display: inline-block;
+}
+
+.company-name {
+    font-weight: 600;
+    color: #ffffff !important;
+}
+
+/* Sector Pills */
+.sector-pill {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.sector-technology { background: rgba(0, 242, 254, 0.12) !important; color: #00f2fe !important; border: 1px solid rgba(0, 242, 254, 0.2) !important; }
+.sector-financial { background: rgba(79, 172, 254, 0.12) !important; color: #4facfe !important; border: 1px solid rgba(79, 172, 254, 0.2) !important; }
+.sector-consumer { background: rgba(255, 171, 0, 0.12) !important; color: #ffab00 !important; border: 1px solid rgba(255, 171, 0, 0.2) !important; }
+.sector-energy { background: rgba(255, 59, 48, 0.12) !important; color: #ff3b30 !important; border: 1px solid rgba(255, 59, 48, 0.2) !important; }
+.sector-health { background: rgba(0, 255, 127, 0.12) !important; color: #00ff7f !important; border: 1px solid rgba(0, 255, 127, 0.2) !important; }
+.sector-industrial { background: rgba(148, 163, 184, 0.12) !important; color: #94a3b8 !important; border: 1px solid rgba(148, 163, 184, 0.2) !important; }
+.sector-default { background: rgba(255, 255, 255, 0.08) !important; color: #e0e0e0 !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; }
+
+/* Allocation progress bar */
+.allocation-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.allocation-bar-bg {
+    flex-grow: 1;
+    background: rgba(255, 255, 255, 0.05);
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.allocation-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%);
+    border-radius: 3px;
+    box-shadow: 0 0 8px rgba(0, 242, 254, 0.4);
+}
+
+.allocation-text {
+    font-size: 13px;
+    font-weight: 700;
+    color: #00f2fe !important;
+    min-width: 50px;
+    text-align: right;
+}
+
+
