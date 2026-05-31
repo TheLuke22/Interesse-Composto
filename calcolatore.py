@@ -1926,12 +1926,34 @@ elif page_choice == "📊 Stock Tracker":
                 cash_no_drip = 0
                 val_with_drip_series, val_no_drip_series, val_price_only_series = [], [], []
                 div_history = []
+                
+                # Variabili aggiuntive per le statistiche DRIP annuali (sempre simulate)
+                sim_shares_drip = shares_no_drip
+                reinvested_shares_by_year = {} # {year: shares_bought}
+                div_by_year = {} # {year: div_received}
+                shares_at_year_end = {} # {year: shares_owned}
 
                 for i in range(len(hist_data)):
                     price = hist_data['Close'].iloc[i]
                     div = hist_data['Dividends'].iloc[i]
                     date = hist_data.index[i]
+                    year = date.year
                     
+                    if year not in reinvested_shares_by_year:
+                        reinvested_shares_by_year[year] = 0.0
+                        div_by_year[year] = 0.0
+                        
+                    # 1. Simulatore DRIP costante per statistiche
+                    div_incassato_drip_sim = div * sim_shares_drip
+                    if div > 0:
+                        shares_bought_sim = div_incassato_drip_sim / price
+                        sim_shares_drip += shares_bought_sim
+                        reinvested_shares_by_year[year] += shares_bought_sim
+                        div_by_year[year] += div_incassato_drip_sim
+                        
+                    shares_at_year_end[year] = sim_shares_drip
+                    
+                    # 2. Simulatore in base allo stato scelto dall'utente
                     div_incassato = div * (shares_with_drip if drip_active else shares_no_drip)
                     if div > 0:
                         div_history.append({"Date": date, "Amount": div_incassato})
@@ -2083,6 +2105,95 @@ elif page_choice == "📊 Stock Tracker":
                                 c3.metric("CAGR (3 Anni)", "N/A")
                         else:
                             st.info("Storico di anni completi insufficiente per calcolare la crescita annuale composta (CAGR).")
+
+                    # --- DETTAGLIO AZIONI POSSEDUTE E RIACQUISTO DIVIDENDI (DRIP) ---
+                    st.divider()
+                    st.subheader("❄️ Reinvestment & Share Ownership Details")
+                    
+                    initial_shares = a_cap / hist_data['Close'].iloc[0]
+                    current_shares_actual = shares_with_drip if drip_active else shares_no_drip
+                    
+                    st.write("Analizziamo in dettaglio come l'investimento iniziale ha generato e accumulato quote azionarie nel tempo.")
+                    
+                    oc1, oc2 = st.columns(2)
+                    
+                    # Colonna 1: Stato Attuale (in base alla scelta dell'utente)
+                    with oc1:
+                        st.markdown(f"""
+                        <div class="custom-kpi-card" style="background: rgba(46, 134, 193, 0.05); border: 1px solid rgba(46, 134, 193, 0.15); min-height: 125px;">
+                            <div style="font-size: 13px; font-weight: 500; color: #8A929A; text-transform: uppercase;">Stato Azioni Attuale ({'DRIP Attivo' if drip_active else 'DRIP Disattivo'})</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #ffffff; margin-top: 10px;">{current_shares_actual:.3f} <span style="font-size: 16px; font-weight: 500; color: #cbd5e1;">Azioni</span></div>
+                            <div style="color: #8A929A; font-size: 12px; margin-top: 6px;">
+                                Investimento iniziale di <b>${a_cap:,.2f}</b> = {initial_shares:.3f} azioni acquistate all'inizio.
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                    # Colonna 2: Vantaggio dell'effetto DRIP
+                    with oc2:
+                        extra_shares = sim_shares_drip - initial_shares
+                        pct_increase = (extra_shares / initial_shares) * 100 if initial_shares > 0 else 0
+                        st.markdown(f"""
+                        <div class="custom-kpi-card" style="background: rgba(0, 255, 127, 0.05); border: 1px solid rgba(0, 255, 127, 0.15); min-height: 125px;">
+                            <div style="font-size: 13px; font-weight: 500; color: #8A929A; text-transform: uppercase;">Moltiplicatore DRIP (Potenziale)</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #00FF7F; margin-top: 10px;">+{extra_shares:.3f} <span style="font-size: 16px; font-weight: 500; color: #cbd5e1;">Azioni</span></div>
+                            <div style="color: #00FF7F; font-size: 12px; margin-top: 6px; font-weight: 600;">
+                                Incremento del +{pct_increase:.2f}% nel numero di azioni possedute!
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    st.write("")
+                    st.markdown("#### 📅 Piano di Accumulo Reinvestimenti (DRIP)")
+                    st.write("Dettaglio anno per anno delle azioni riacquistate e della crescita del portafoglio grazie al reinvestimento automatico dei dividendi:")
+                    
+                    total_divs_all_years = sum(div_by_year.values())
+                    if reinvested_shares_by_year and total_divs_all_years > 0:
+                        table_html = """
+                        <table class="premium-portfolio-table">
+                            <thead>
+                                <tr>
+                                    <th>Anno</th>
+                                    <th style="text-align: right;">Dividendi Ricevuti ($)</th>
+                                    <th style="text-align: right;">Azioni Riacquistate</th>
+                                    <th style="text-align: right;">Totale Azioni Fine Anno</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                        """
+                        sorted_years = sorted(reinvested_shares_by_year.keys())
+                        for yr in sorted_years:
+                            div_rec = div_by_year.get(yr, 0.0)
+                            shares_b = reinvested_shares_by_year.get(yr, 0.0)
+                            total_sh = shares_at_year_end.get(yr, initial_shares)
+                            
+                            table_html += f"""
+                            <tr>
+                                <td><span class="ticker-badge" style="background: rgba(255, 255, 255, 0.08); box-shadow: none; color: #ffffff !important;">{yr}</span></td>
+                                <td style="text-align: right; font-weight: 600; color: #00FF7F;">${div_rec:,.2f}</td>
+                                <td style="text-align: right; font-weight: 600; color: #00f2fe;">+{shares_b:.3f}</td>
+                                <td style="text-align: right; font-weight: 700; color: #ffffff;">{total_sh:.3f}</td>
+                            </tr>
+                            """
+                            
+                        table_html += """
+                            </tbody>
+                        </table>
+                        """
+                        clean_table_html = "\n".join([line.strip() for line in table_html.split("\n")])
+                        st.markdown(clean_table_html, unsafe_allow_html=True)
+                    else:
+                        st.info("Questo titolo non ha distribuito dividendi nel periodo selezionato, quindi non ci sono riacquisti da mostrare.")
+                    
+                    if not drip_active:
+                        st.markdown("""
+                        <div style="background: rgba(255, 171, 0, 0.05); border: 1px dashed rgba(255, 171, 0, 0.2); padding: 12px 18px; border-radius: 8px; margin-top: 15px;">
+                            <span style="color: #ffab00; font-weight: 600; font-size: 13.5px;">
+                                💡 <b>Suggerimento Quant:</b> Al momento hai disattivato il reinvestimento dei dividendi (DRIP) per i grafici principali in alto. Attiva il toggle in cima per vedere l'effetto reale sul valore totale del portafoglio!
+                            </span>
+                        </div>
+                        """, unsafe_allow_html=True)
+
 
                 # --- TAB 3: PROJECTIONS ---
                 with tab_mc:
