@@ -35,6 +35,25 @@ WALL_STREET_QUOTES = [
 # --- CONFIGURAZIONE ISTITUZIONALE ---
 st.set_page_config(page_title="PRO Quant Dashboard", layout="wide", initial_sidebar_state="expanded")
 
+# --- QUERY PARAMETERS INTERCEPTOR (DIRECT NAV FROM SCREENER & SUPER INVESTORS) ---
+if "ticker" in st.query_params:
+    qp_ticker = st.query_params["ticker"]
+    if qp_ticker:
+        # Prepopulate Stock Tracker
+        st.session_state['active_ticker'] = qp_ticker.upper()
+        if 'active_cap' not in st.session_state:
+            st.session_state['active_cap'] = 1000.0
+        if 'active_years' not in st.session_state:
+            st.session_state['active_years'] = 10
+        if 'active_bench' not in st.session_state:
+            st.session_state['active_bench'] = "SPY"
+        # Switch navigation page to Stock Tracker
+        st.session_state['navigation_page'] = "📊 Stock Tracker"
+        # Clear query parameters to update browser URL and avoid routing loops
+        st.query_params.clear()
+        st.rerun()
+
+
 # --- MOTORE PER MARQUEE DATA ---
 @st.cache_data(ttl=3600)
 def get_marquee_data():
@@ -167,7 +186,7 @@ def render_premium_portfolio_table(holdings):
             
         html += f"""
         <tr>
-            <td><span class="ticker-badge">{ticker}</span></td>
+            <td><a class="screener-link" href="?ticker={ticker}" target="_self"><span class="ticker-badge">{ticker}</span></a></td>
             <td class="company-name">{azienda}</td>
             <td><span class="sector-pill {sec_class}">{settore}</span></td>
             <td style="text-align: right; font-weight: 500; color: #CBD5E1;">{quote}</td>
@@ -242,7 +261,7 @@ def render_premium_screener_table(df):
         
         html += f"""
         <tr>
-            <td><span class="ticker-badge">{ticker}</span></td>
+            <td><a class="screener-link" href="?ticker={ticker}" target="_self"><span class="ticker-badge">{ticker}</span></a></td>
             <td class="company-name">{azienda}</td>
             <td style="text-align: right; font-weight: 600; color: #ffffff;">{formatted_price}</td>
             <td style="text-align: right;">{pe_html}</td>
@@ -3473,21 +3492,16 @@ elif page_choice == "🔍 Stock Screener":
                     st.success(f"Trovate {len(screener_res)} aziende che rispettano i tuoi parametri istituzionali.")
                     render_premium_screener_table(df_screen)
                     
-                    st.write("")
-                    col_sel1, col_sel2 = st.columns([2.5, 1])
-                    with col_sel1:
-                        ticker_to_track = st.selectbox(
-                            "🔍 Vuoi analizzare un titolo in dettaglio? Selezionalo da qui:", 
-                            options=df_screen['Ticker'].tolist(),
-                            key="screener_ticker_selection"
-                        )
-                    with col_sel2:
-                        st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) # Allineamento perfetto orizzontale
-                        if st.button("📊 Analizza in Stock Tracker", use_container_width=True, type="primary"):
-                            st.session_state['active_ticker'] = ticker_to_track
-                            st.session_state['navigation_page'] = "📊 Stock Tracker"
-                            st.toast(f"Caricamento analisi per {ticker_to_track} in corso...", icon="📊")
-                            st.rerun()
+                    info_note_html = """
+                    <div style="background: rgba(0, 242, 254, 0.05); border: 1px dashed rgba(0, 242, 254, 0.2); padding: 12px 18px; border-radius: 8px; margin-top: 15px; margin-bottom: 25px; display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 18px;">💡</span>
+                        <span style="color: #cbd5e1; font-size: 13.5px; font-weight: 500;">
+                            <b>Analisi Diretta:</b> Clicca sul <span style="background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%); color: white; font-weight: 700; padding: 2px 6px; border-radius: 4px; font-size: 11px;">TICKER</span> di qualsiasi azienda per analizzarla istantaneamente nella sezione <b>Stock Tracker</b>!
+                        </span>
+                    </div>
+                    """
+                    clean_info_note = "\n".join([line.strip() for line in info_note_html.split("\n")])
+                    st.markdown(clean_info_note, unsafe_allow_html=True)
                     
                     if len(df_screen) >= 4:
                         st.subheader("🧲 K-Means AI Clustering (S&P 500)")

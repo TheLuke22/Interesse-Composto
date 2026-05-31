@@ -300,4 +300,22 @@
     text-align: right;
 }
 
+/* Clickable Ticker Badge Hover Effects */
+.screener-link {
+    text-decoration: none !important;
+    display: inline-block;
+}
+
+.screener-link .ticker-badge {
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.screener-link:hover .ticker-badge {
+    transform: translateY(-2px) scale(1.06);
+    box-shadow: 0 4px 15px rgba(0, 242, 254, 0.45);
+    filter: brightness(1.15);
+}
+
+
 
