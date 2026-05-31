@@ -181,10 +181,12 @@ def render_premium_portfolio_table(holdings):
         </tr>
         """
     html += """
-        </tbody>
-    </table>
-    """
-    st.markdown(html, unsafe_allow_html=True)
+    </tbody>
+</table>
+"""
+    # Rimuove gli spazi iniziali da ogni riga per evitare che il markdown interpreti l'HTML come blocco di codice preformattato
+    clean_html = "\n".join([line.strip() for line in html.split("\n")])
+    st.markdown(clean_html, unsafe_allow_html=True)
 
 
 def apply_premium_chart_theme(fig, is_sparkline=False):
