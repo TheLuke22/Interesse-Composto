@@ -485,13 +485,12 @@ st.markdown(f"""
     }}
 
     /* 1. CONTROLLI DI INPUT PREMIUM (FORM, SLIDERS & BUTTONS) */
-    /* Input di Testo e Numerici - Sfondo scuro sempre leggibile */
+    /* Input di Testo, Area e Numerici - Sfondo scuro sempre leggibile con padding adeguato */
     input, 
     textarea,
     div[data-testid="stNumberInput"] input, 
     div[data-testid="stTextInput"] input,
-    div[data-baseweb="input"] input,
-    div[data-baseweb="select"] > div {{
+    div[data-baseweb="input"] input {{
         background-color: #0c0d14 !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 12px !important;
@@ -501,15 +500,28 @@ st.markdown(f"""
         transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
         box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15) !important;
     }}
+
+    /* Selectbox di Streamlit - Solo fondale scuro e bordi finissimi, senza alterare il padding nativo per evitare troncamenti (...) */
+    div[data-baseweb="select"] > div {{
+        background-color: #0c0d14 !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 12px !important;
+        font-family: 'Inter', sans-serif !important;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    }}
     
     input:focus, 
     textarea:focus,
     div[data-testid="stNumberInput"] input:focus, 
-    div[data-testid="stTextInput"] input:focus,
-    div[data-baseweb="select"] > div:focus-within {{
+    div[data-testid="stTextInput"] input:focus {{
         border-color: rgba(79, 172, 254, 0.4) !important;
         box-shadow: 0 0 15px rgba(79, 172, 254, 0.12), inset 0 2px 4px rgba(0, 0, 0, 0.15) !important;
         background-color: #0c0d14 !important;
+    }}
+
+    div[data-baseweb="select"] > div:focus-within {{
+        border-color: rgba(79, 172, 254, 0.4) !important;
+        box-shadow: 0 0 15px rgba(79, 172, 254, 0.12) !important;
     }}
 
     /* Dropdown select options styling (per evitare menu bianchi con testo bianco) */
