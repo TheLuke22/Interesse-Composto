@@ -449,7 +449,7 @@ st.markdown(f"""
         letter-spacing: -0.5px;
     }}
 
-    .stMarkdown, p, span, label, .stMetric label, .stSelectbox label, .stSlider label, [data-testid="stWidgetLabel"] p {{
+    .stMarkdown, p, label, .stMetric label, .stSelectbox label, .stSlider label, [data-testid="stWidgetLabel"] p {{
         font-family: 'Inter', sans-serif !important;
         color: #cbd5e1 !important;
     }}
@@ -485,12 +485,15 @@ st.markdown(f"""
     }}
 
     /* 1. CONTROLLI DI INPUT PREMIUM (FORM, SLIDERS & BUTTONS) */
-    /* Input di Testo e Numerici */
+    /* Input di Testo e Numerici - Sfondo scuro sempre leggibile */
+    input, 
+    textarea,
     div[data-testid="stNumberInput"] input, 
     div[data-testid="stTextInput"] input,
+    div[data-baseweb="input"] input,
     div[data-baseweb="select"] > div {{
-        background-color: rgba(255, 255, 255, 0.02) !important;
-        border: 1px solid rgba(255, 255, 255, 0.07) !important;
+        background-color: #0c0d14 !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 12px !important;
         color: #ffffff !important;
         font-family: 'Inter', sans-serif !important;
@@ -499,12 +502,30 @@ st.markdown(f"""
         box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15) !important;
     }}
     
+    input:focus, 
+    textarea:focus,
     div[data-testid="stNumberInput"] input:focus, 
     div[data-testid="stTextInput"] input:focus,
     div[data-baseweb="select"] > div:focus-within {{
         border-color: rgba(79, 172, 254, 0.4) !important;
         box-shadow: 0 0 15px rgba(79, 172, 254, 0.12), inset 0 2px 4px rgba(0, 0, 0, 0.15) !important;
-        background-color: rgba(255, 255, 255, 0.04) !important;
+        background-color: #0c0d14 !important;
+    }}
+
+    /* Dropdown select options styling (per evitare menu bianchi con testo bianco) */
+    div[role="listbox"], ul[role="listbox"], [data-baseweb="menu"], [data-baseweb="popover"] {{
+        background-color: #0c0d14 !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 12px !important;
+    }}
+    div[role="option"], li[role="option"], [data-baseweb="menu"] li {{
+        background-color: transparent !important;
+        color: #cbd5e1 !important;
+        transition: all 0.2s ease !important;
+    }}
+    div[role="option"]:hover, li[role="option"]:hover, [data-baseweb="menu"] li:hover {{
+        background-color: rgba(79, 172, 254, 0.15) !important;
+        color: #ffffff !important;
     }}
 
     /* Sliders Streamlit */
