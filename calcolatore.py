@@ -400,14 +400,6 @@ def apply_premium_chart_theme(fig, is_sparkline=False):
                             trace.marker.color = default_color
                         if hasattr(trace.marker, 'line'):
                             trace.marker.line.width = 0
-                
-                # 3. Grafici a Torta / Ciambella (Pie)
-                elif trace.type == "pie":
-                    if hasattr(trace, 'marker') and trace.marker:
-                        trace.marker.line = dict(color="#0a0a12", width=2)
-                    # Trasforma torte piatte in eleganti ciambelle (Donut)
-                    if hasattr(trace, 'hole'):
-                        trace.hole = 0.5
             except Exception:
                 pass
 
