@@ -311,7 +311,7 @@ def render_premium_screener_table(df):
 
 def apply_premium_chart_theme(fig, is_sparkline=False):
     """
-    Applica un tema Plotly scuro istituzionale, trasparente ed elegante.
+    Applica un tema Plotly scuro istituzionale, trasparente ed estremamente pulito.
     """
     is_spark = is_sparkline
     if hasattr(fig, 'layout') and fig.layout:
@@ -322,30 +322,47 @@ def apply_premium_chart_theme(fig, is_sparkline=False):
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Inter, sans-serif", color="#CBD5E1")
+        font=dict(family="Inter, sans-serif", color="#CBD5E1"),
+        hoverlabel=dict(
+            bgcolor="rgba(15, 23, 42, 0.98)",
+            bordercolor="rgba(255, 255, 255, 0.08)",
+            font=dict(family="Inter, sans-serif", size=12, color="#FFFFFF")
+        )
     )
     
-    # Applica lo stile tipografico al titolo solo se il testo del titolo è effettivamente presente
+    # Applica lo stile tipografico pulito al titolo
     if hasattr(fig, 'layout') and fig.layout and fig.layout.title and getattr(fig.layout.title, 'text', None):
         fig.update_layout(
-            title_font=dict(family="Outfit, sans-serif", size=16, color="#FFFFFF")
+            title_font=dict(family="Outfit, sans-serif", size=16, color="#FFFFFF"),
+            title_pad=dict(b=12)
         )
 
     if is_spark:
-        fig.update_layout(margin=dict(l=0, r=0, t=10, b=0))
+        fig.update_layout(margin=dict(l=0, r=0, t=5, b=5))
     else:
-        fig.update_layout(margin=dict(l=10, r=10, t=40, b=10))
+        fig.update_layout(
+            margin=dict(l=15, r=15, t=45, b=15),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="left",
+                x=0.0,
+                font=dict(size=11, color="#94A3B8"),
+                bgcolor="rgba(0,0,0,0)"
+            )
+        )
         try:
             fig.update_xaxes(
-                gridcolor="rgba(255, 255, 255, 0.06)",
-                linecolor="rgba(255, 255, 255, 0.12)",
-                tickfont=dict(family="Inter, sans-serif", size=11, color="#94A3B8"),
+                gridcolor="rgba(255, 255, 255, 0.03)",
+                linecolor="rgba(255, 255, 255, 0.06)",
+                tickfont=dict(family="Inter, sans-serif", size=10, color="#94A3B8"),
                 zeroline=False
             )
             fig.update_yaxes(
-                gridcolor="rgba(255, 255, 255, 0.06)",
-                linecolor="rgba(255, 255, 255, 0.12)",
-                tickfont=dict(family="Inter, sans-serif", size=11, color="#94A3B8"),
+                gridcolor="rgba(255, 255, 255, 0.03)",
+                linecolor="rgba(255, 255, 255, 0.06)",
+                tickfont=dict(family="Inter, sans-serif", size=10, color="#94A3B8"),
                 zeroline=False
             )
         except Exception:
