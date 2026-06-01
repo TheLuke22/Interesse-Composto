@@ -528,6 +528,14 @@ st.markdown(f"""
         color: #ffffff !important;
     }}
 
+    /* Forza il testo selezionato all'interno dei selectbox di Streamlit ad essere bianco e leggibile */
+    div[data-baseweb="select"] div,
+    div[data-baseweb="select"] span,
+    [data-testid="stSelectboxVirtualFocus"],
+    [data-testid="stSelectbox"] div {{
+        color: #ffffff !important;
+    }}
+
     /* Sliders Streamlit */
     div[data-testid="stSlider"] [data-baseweb="slider"] {{
         background-color: transparent !important;
