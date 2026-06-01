@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from typing import Any
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -16,6 +17,35 @@ import random
 import os
 import textwrap
 import requests
+import logging
+import time
+from functools import wraps
+
+# --- SYSTEM LOGGING CONFIGURATION ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("PROQuantDashboard")
+
+# --- EXPONENTIAL BACKOFF RETRY DECORATOR ---
+def retry_on_failure(max_retries=3, initial_delay=1.0, backoff_factor=2.0):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            delay = initial_delay
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        logger.error(f"Errore definitivo in {func.__name__} dopo {max_retries} tentativi: {e}")
+                        raise
+                    logger.warning(f"Tentativo {attempt + 1} fallito per {func.__name__}. Riprovo tra {delay:.2f}s. Errore: {e}")
+                    time.sleep(delay)
+                    delay *= backoff_factor
+        return wrapper
+    return decorator
 
 # --- YAHOO FINANCE ---
 # (Il yf_session personalizzato è stato rimosso in quanto yfinance lo gestisce nativamente con curl_cffi per evitare i blocchi)
@@ -66,7 +96,14 @@ if 'active_bench' not in st.session_state:
 
 # --- MOTORE PER MARQUEE DATA ---
 @st.cache_data(ttl=3600)
-def get_marquee_data():
+@retry_on_failure(max_retries=3, initial_delay=1.0)
+def get_marquee_data() -> str:
+    """
+    Recupera i dati correnti per l'intestazione a scorrimento (Marquee) tramite Yahoo Finance.
+    
+    Returns:
+        str: Stringa HTML contenente i ticker formattati o un messaggio di errore.
+    """
     tickers = {
         "S&P 500": "SPY", "NASDAQ": "QQQ", "DOW J": "DIA", "GOLD": "GLD", 
         "BTC": "BTC-USD", "10Y YIELD": "^TNX", "NVIDIA": "NVDA", "APPLE": "AAPL", 
@@ -89,7 +126,8 @@ def get_marquee_data():
                         sign = "+" if pct >= 0 else ""
                         marquee_items.append(f"<span style='margin-right: 40px;'><b>{name}</b> ${last_prc:,.2f} <span style='color: {color};'>{sign}{pct:.2f}%</span></span>")
         return " ".join(marquee_items) if marquee_items else "MARKET DATA LIMITED"
-    except:
+    except Exception as e:
+        logger.warning(f"Chiamata get_marquee_data fallita: {e}")
         return "MARKET DATA UNAVAILABLE"
 
 marquee_html = get_marquee_data()
@@ -731,7 +769,17 @@ if 'watchlist' not in st.session_state:
     st.session_state['watchlist'] = load_watchlist()
 
 # --- UTILITY QUANTITATIVE E FORMATTAZIONE ---
-def format_large_numbers(value, is_currency=True):
+def format_large_numbers(value: Any, is_currency: bool = True) -> str:
+    """
+    Formatta numeri di grandi dimensioni (T, B, M) aggiungendo opzionalmente il simbolo di valuta.
+    
+    Args:
+        value (Any): Il valore numerico da formattare (supporta float, int, liste o Series).
+        is_currency (bool, optional): Se aggiungere il prefisso '$'. Defaults to True.
+        
+    Returns:
+        str: Il numero formattato in formato abbreviato o 'N/A' se non valido.
+    """
     # Se il valore è una Series o lista, prendi il primo elemento (evita errori di ambiguità pandas)
     if hasattr(value, "__len__") and not isinstance(value, (str, bytes)):
         if len(value) > 0:
@@ -749,7 +797,17 @@ def format_large_numbers(value, is_currency=True):
     if value >= 1_000_000: return f"{prefix}{c}{value/1_000_000:.2f}M"
     return f"{prefix}{c}{value:,.2f}"
 
-def format_perc(value):
+
+def format_perc(value: Any) -> str:
+    """
+    Formatta un valore frazionario in stringa percentuale raccordata.
+    
+    Args:
+        value (Any): Il valore frazionario da formattare (supporta float, int, liste o Series).
+        
+    Returns:
+        str: La percentuale formattata (es. '12.34%') o 'N/A' se non valido.
+    """
     if hasattr(value, "__len__") and not isinstance(value, (str, bytes)):
         if len(value) > 0:
             import pandas as pd
@@ -759,36 +817,69 @@ def format_perc(value):
     if value is None or str(value) == 'nan' or value == 'N/A': return "N/A"
     return f"{value * 100:.2f}%"
 
-def calc_cagr(start_val, end_val, years):
-    """Calcola il Compound Annual Growth Rate."""
-    if start_val <= 0 or years <= 0: return 0
+
+def calc_cagr(start_val: float, end_val: float, years: float) -> float:
+    """
+    Calcola il tasso composto annuo di crescita (Compound Annual Growth Rate).
+    
+    Args:
+        start_val (float): Valore patrimoniale iniziale.
+        end_val (float): Valore patrimoniale finale.
+        years (float): Numero di anni dell'intervallo temporale.
+        
+    Returns:
+        float: Il tasso CAGR espresso in forma decimale.
+    """
+    if start_val <= 0 or years <= 0: return 0.0
     return (end_val / start_val) ** (1 / years) - 1
 
-def calc_risk_metrics(returns, rf_rate=0.02):
+
+def calc_risk_metrics(returns: pd.Series, rf_rate: float = 0.02) -> tuple[float, float]:
     """
-    Calcola Sharpe Ratio e Max Drawdown.
-    Ratio: Rendimento in eccesso per unità di rischio.
+    Calcola l'indice di Sharpe ed il massimo drawdown storico su una serie temporale di rendimenti.
+    
+    Args:
+        returns (pd.Series): Serie storica dei rendimenti giornalieri.
+        rf_rate (float, optional): Tasso d'interesse privo di rischio. Defaults to 0.02 (2%).
+        
+    Returns:
+        tuple[float, float]: Una tupla contenente (Sharpe Ratio annualizzato, Max Drawdown).
     """
     if returns.empty: return 0.0, 0.0
     
-    # Annualizzazione (252 giorni di trading)
-    adj_returns = returns.dropna()
-    mean_ret = adj_returns.mean() * 252
-    vol = adj_returns.std() * np.sqrt(252)
-    
-    sharpe = (mean_ret - rf_rate) / vol if vol > 0 else 0.0
-    
-    # Max Drawdown
-    cum_ret = (1 + adj_returns).cumprod()
-    peak = cum_ret.cummax()
-    drawdown = (cum_ret - peak) / peak
-    max_dd = drawdown.min()
-    
-    return sharpe, max_dd
+    try:
+        # Annualizzazione (252 giorni di trading)
+        adj_returns = returns.dropna()
+        mean_ret = adj_returns.mean() * 252
+        vol = adj_returns.std() * np.sqrt(252)
+        
+        sharpe = (mean_ret - rf_rate) / vol if vol > 0 else 0.0
+        
+        # Max Drawdown
+        cum_ret = (1 + adj_returns).cumprod()
+        peak = cum_ret.cummax()
+        drawdown = (cum_ret - peak) / peak
+        max_dd = drawdown.min()
+        
+        return float(sharpe), float(max_dd)
+    except Exception as e:
+        logger.error(f"Errore nel calcolo delle metriche di rischio: {e}")
+        return 0.0, 0.0
+
 
 # --- FUNZIONI AI OLLAMA (LOCALE) ---
-def get_sentiment(text):
-    """Analizza il sentiment del testo usando Gemma in locale tramite Ollama."""
+@retry_on_failure(max_retries=3, initial_delay=1.0)
+def get_sentiment(text: str) -> str:
+    """
+    Analizza il sentiment finanziario del testo (positivo, negativo o neutrale) tramite il modello locale Gemma.
+    Se fallisce, esegue un fallback locale sul sentiment di TextBlob.
+    
+    Args:
+        text (str): Testo o titolo della notizia da analizzare.
+        
+    Returns:
+        str: Il sentiment rilevato formattato con emoji.
+    """
     prompt = f"""Agisci come un analista finanziario esperto. 
     Leggi il seguente titolo di una notizia e dimmi se per il prezzo delle azioni dell'azienda è una notizia POSITIVA, NEGATIVA o NEUTRA. 
     Rispondi SOLO con una di queste tre parole: Positive, Negative, Neutral.
@@ -816,8 +907,10 @@ def get_sentiment(text):
             else: 
                 return "⚪ Neutral"
         else:
-            return "⚪ Neutral (Errore API)"
-    except Exception:
+            logger.warning(f"Ollama API ha risposto con codice non 200: {response.status_code}")
+            raise Exception("API status error")
+    except Exception as e:
+        logger.warning(f"Ollama fallito, avvio TextBlob fallback: {e}")
         score = TextBlob(text).sentiment.polarity
         if score > 0.1: return "🟢 Positive (TextBlob Fallback)"
         elif score < -0.1: return "🔴 Negative (TextBlob Fallback)"
