@@ -2266,7 +2266,6 @@ elif page_choice == "📊 Stock Tracker":
                 st.divider()
 
                 # --- SIMULATORE PREZZO (DRIP VS NO DRIP) ---
-                drip_active = st.session_state.get('drip_active', False)
                 shares_with_drip = a_cap / hist_data['Close'].iloc[0]
                 shares_no_drip = shares_with_drip
                 cash_no_drip = 0
@@ -2309,15 +2308,12 @@ elif page_choice == "📊 Stock Tracker":
                         div_incassato_no_drip = div * shares_no_drip
                         cash_no_drip += div_incassato_no_drip
                         
-                        # Salviamo lo storico dei dividendi incassati in base alla scelta dell'utente
-                        div_history_amount = div_incassato_drip if drip_active else div_incassato_no_drip
-                        div_history.append({"Date": date, "Amount": div_history_amount})
+                        # Salviamo lo storico dei dividendi incassati (con DRIP di default per l'effetto Snowball)
+                        div_history.append({"Date": date, "Amount": div_incassato_drip})
                             
                     val_with_drip_series.append(shares_with_drip * price)
                     val_no_drip_series.append((shares_no_drip * price) + cash_no_drip)
                     val_price_only_series.append(shares_no_drip * price)
-
-                hist_data['Chosen Value'] = val_with_drip_series if drip_active else val_no_drip_series
 
                 # --- SISTEMA DI TAB ---
                 # Scarica report istituzionale
@@ -2386,10 +2382,7 @@ elif page_choice == "📊 Stock Tracker":
 
                 # --- TAB 2: DIVIDENDS ---
                 with tab_divs:
-                    col_tot, col_tog = st.columns([0.65, 0.35])
-                    col_tot.subheader("Total Return & Dividend Compounding")
-                    col_tog.write("") # Spacer 
-                    col_tog.toggle("Reinvest Dividends (DRIP)", key="drip_active")
+                    st.subheader("Total Return & Dividend Compounding")
                     
                     tot_ret_drip = (val_with_drip_series[-1] / a_cap) - 1
                     tot_ret_no_drip = (val_no_drip_series[-1] / a_cap) - 1
@@ -2419,7 +2412,8 @@ elif page_choice == "📊 Stock Tracker":
                     pm2.metric("Yield on Cost (w/o DRIP)", format_perc(yoc_no_drip))
                     
                     fig_perf = go.Figure()
-                    fig_perf.add_trace(go.Scatter(x=hist_data.index, y=hist_data['Chosen Value'], name='Total Return Value', fill='tozeroy', line=dict(color='#27AE60')))
+                    fig_perf.add_trace(go.Scatter(x=hist_data.index, y=val_with_drip_series, name='Total Return (with DRIP)', fill='tozeroy', line=dict(color='#27AE60')))
+                    fig_perf.add_trace(go.Scatter(x=hist_data.index, y=val_no_drip_series, name='Total Return (w/o DRIP)', line=dict(color='#2E86C1')))
                     fig_perf.add_trace(go.Scatter(x=hist_data.index, y=val_price_only_series, name='Price Only', line=dict(color='#95A5A6', dash='dash')))
                     fig_perf.update_layout(yaxis_title="Portfolio Value ($)", margin=dict(l=0, r=0, t=30, b=0))
                     st.plotly_chart(fig_perf, use_container_width=True)
@@ -2477,17 +2471,17 @@ elif page_choice == "📊 Stock Tracker":
                     st.subheader("❄️ Reinvestment & Share Ownership Details")
                     
                     initial_shares = a_cap / hist_data['Close'].iloc[0]
-                    current_shares_actual = shares_with_drip if drip_active else shares_no_drip
+                    current_shares_actual = shares_with_drip
                     
                     st.write("Analizziamo in dettaglio come l'investimento iniziale ha generato e accumulato quote azionarie nel tempo.")
                     
                     oc1, oc2 = st.columns(2)
                     
-                    # Colonna 1: Stato Attuale (in base alla scelta dell'utente)
+                    # Colonna 1: Stato Attuale con DRIP
                     with oc1:
                         st.markdown(f"""
                         <div class="custom-kpi-card" style="background: rgba(46, 134, 193, 0.05); border: 1px solid rgba(46, 134, 193, 0.15); min-height: 125px;">
-                            <div style="font-size: 13px; font-weight: 500; color: #8A929A; text-transform: uppercase;">Stato Azioni Attuale ({'DRIP Attivo' if drip_active else 'DRIP Disattivo'})</div>
+                            <div style="font-size: 13px; font-weight: 500; color: #8A929A; text-transform: uppercase;">Stato Azioni Finali (con DRIP)</div>
                             <div style="font-size: 28px; font-weight: 700; color: #ffffff; margin-top: 10px;">{current_shares_actual:.3f} <span style="font-size: 16px; font-weight: 500; color: #cbd5e1;">Azioni</span></div>
                             <div style="color: #8A929A; font-size: 12px; margin-top: 6px;">
                                 Investimento iniziale di <b>${a_cap:,.2f}</b> = {initial_shares:.3f} azioni acquistate all'inizio.
@@ -2550,15 +2544,6 @@ elif page_choice == "📊 Stock Tracker":
                         st.markdown(clean_table_html, unsafe_allow_html=True)
                     else:
                         st.info("Questo titolo non ha distribuito dividendi nel periodo selezionato, quindi non ci sono riacquisti da mostrare.")
-                    
-                    if not drip_active:
-                        st.markdown("""
-                        <div style="background: rgba(255, 171, 0, 0.05); border: 1px dashed rgba(255, 171, 0, 0.2); padding: 12px 18px; border-radius: 8px; margin-top: 15px;">
-                            <span style="color: #ffab00; font-weight: 600; font-size: 13.5px;">
-                                💡 <b>Suggerimento Quant:</b> Al momento hai disattivato il reinvestimento dei dividendi (DRIP) per i grafici principali in alto. Attiva il toggle in cima per vedere l'effetto reale sul valore totale del portafoglio!
-                            </span>
-                        </div>
-                        """, unsafe_allow_html=True)
 
 
                 # --- TAB 3: PROJECTIONS ---
