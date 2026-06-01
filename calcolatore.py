@@ -1659,9 +1659,9 @@ if page_choice == "🏠 Home":
                         wl_color = "#22c55e" if wl_chg >= 0 else "#ef4444"
                         wl_sign = "+" if wl_chg >= 0 else ""
                         wl_arrow = "▲" if wl_chg >= 0 else "▼"
-                        wl_html += f'<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-left: 3px solid {wl_color}; border-radius: 10px; padding: 14px 20px; min-width: 170px; flex: 1; max-width: 220px;"><div style="font-weight: 700; font-size: 15px; color: #3b82f6;">{wl_tk}</div><div style="font-size: 20px; font-weight: 700; margin-top: 6px;">${wl_curr:,.2f}</div><div style="color: {wl_color}; font-weight: 600; font-size: 14px; margin-top: 2px;">{wl_arrow} {wl_sign}{wl_chg:.2f}%</div></div>'
+                        wl_html += f'<div class="transition-all" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-left: 3px solid {wl_color}; border-radius: 12px; padding: 14px 20px; min-width: 170px; flex: 1; max-width: 220px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);"><a class="screener-link" href="?ticker={wl_tk}" target="_self"><span class="ticker-badge" style="margin-bottom: 6px;">{wl_tk}</span></a><div class="num-value" style="font-size: 20px; font-weight: 700; margin-top: 6px; color: #ffffff;">${wl_curr:,.2f}</div><div class="num-value" style="color: {wl_color}; font-weight: 600; font-size: 14px; margin-top: 2px;">{wl_arrow} {wl_sign}{wl_chg:.2f}%</div></div>'
                     else:
-                        wl_html += f'<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 14px 20px; min-width: 170px; flex: 1; max-width: 220px;"><div style="font-weight: 700; font-size: 15px; color: #3b82f6;">{wl_tk}</div><div style="font-size: 14px; color: #64748b; margin-top: 6px;">Data unavailable</div></div>'
+                        wl_html += f'<div class="transition-all" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px 20px; min-width: 170px; flex: 1; max-width: 220px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);"><a class="screener-link" href="?ticker={wl_tk}" target="_self"><span class="ticker-badge" style="margin-bottom: 6px;">{wl_tk}</span></a><div style="font-size: 14px; color: #64748b; margin-top: 6px;">Data unavailable</div></div>'
                 wl_html += '</div>'
                 st.markdown(wl_html, unsafe_allow_html=True)
             
@@ -1948,10 +1948,10 @@ if page_choice == "🏠 Home":
             html_str += f'''<tr>
                 <td><span class="rank-num">{idx}</span></td>
                 <td>{logo_img}<strong>{name}</strong></td>
-                <td><span class="tk-name-link">{tkr}</span></td>
-                <td><strong>${price:,.2f}</strong></td>
-                <td><span class="pill {pill_class}">{sign}{change:.2f}%</span></td>
-                <td><span class="mcap-val">{mcap_str}</span></td>
+                <td><a class="screener-link" href="?ticker={tkr}" target="_self"><span class="ticker-badge">{tkr}</span></a></td>
+                <td class="num-value"><strong>${price:,.2f}</strong></td>
+                <td class="num-value"><span class="pill {pill_class}">{sign}{change:.2f}%</span></td>
+                <td class="num-value"><span class="mcap-val">{mcap_str}</span></td>
             </tr>'''
         html_str += "</tbody></table>"
         st.markdown(html_str, unsafe_allow_html=True)
