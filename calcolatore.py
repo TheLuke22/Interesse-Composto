@@ -318,11 +318,15 @@ def apply_premium_chart_theme(fig, is_sparkline=False):
         if hasattr(fig.layout, 'xaxis') and fig.layout.xaxis and fig.layout.xaxis.visible is False:
             is_spark = True
 
-    # Impostazioni di stile base trasparenti e di font globale
+    # Palette istituzionale scura
+    color_palette = ["#4facfe", "#10b981", "#f59e0b", "#ef4444", "#a5b4fc", "#64748b"]
+
+    # Impostazioni di stile base trasparenti, font e colorway globale
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Inter, sans-serif", color="#CBD5E1"),
+        colorway=color_palette,
         hoverlabel=dict(
             bgcolor="rgba(15, 23, 42, 0.98)",
             bordercolor="rgba(255, 255, 255, 0.08)",
@@ -367,6 +371,46 @@ def apply_premium_chart_theme(fig, is_sparkline=False):
             )
         except Exception:
             pass
+
+    # Aggiorna dinamicamente i singoli tracciati (Traces) per uno stile impeccabile
+    if hasattr(fig, 'data') and fig.data:
+        for idx, trace in enumerate(fig.data):
+            default_color = color_palette[idx % len(color_palette)]
+            try:
+                # 1. Curve e Aree (Scatter)
+                if trace.type == "scatter":
+                    if hasattr(trace, 'line') and trace.line:
+                        if not getattr(trace.line, 'color', None):
+                            trace.line.color = default_color
+                        trace.line.shape = "spline"
+                        trace.line.width = 2.5
+                    
+                    # Gradienti traslucidi ad area
+                    if hasattr(trace, 'fill') and trace.fill and trace.fill != 'none':
+                        ref_color = getattr(trace.line, 'color', default_color)
+                        if isinstance(ref_color, str) and ref_color.startswith('#'):
+                            h = ref_color.lstrip('#')
+                            rgb = tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+                            trace.fillcolor = f"rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.06)"
+                
+                # 2. Istogrammi (Bar)
+                elif trace.type == "bar":
+                    if hasattr(trace, 'marker') and trace.marker:
+                        if not getattr(trace.marker, 'color', None):
+                            trace.marker.color = default_color
+                        if hasattr(trace.marker, 'line'):
+                            trace.marker.line.width = 0
+                
+                # 3. Grafici a Torta / Ciambella (Pie)
+                elif trace.type == "pie":
+                    if hasattr(trace, 'marker') and trace.marker:
+                        trace.marker.line = dict(color="#0a0a12", width=2)
+                    # Trasforma torte piatte in eleganti ciambelle (Donut)
+                    if hasattr(trace, 'hole'):
+                        trace.hole = 0.5
+            except Exception:
+                pass
+
     return fig
 
 # Override st.plotly_chart per applicare automaticamente il tema a ogni grafico
