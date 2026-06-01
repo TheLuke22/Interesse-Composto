@@ -176,7 +176,7 @@
 .custom-kpi-card:hover {
     transform: translateY(-5px) !important;
     border-color: rgba(255, 255, 255, 0.18) !important;
-    box-shadow: 0 15px 35px 0 rgba(0, 242, 254, 0.15) !important;
+    box-shadow: 0 15px 35px 0 rgba(79, 172, 254, 0.06) !important;
     background: rgba(255, 255, 255, 0.05) !important;
 }
 

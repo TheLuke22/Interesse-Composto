@@ -141,7 +141,7 @@ def render_custom_metric(label, value, delta=None, icon=None, is_positive=None):
             <div style="font-size: 13px; font-weight: 500; color: #8A929A; text-transform: uppercase; letter-spacing: 0.5px;">{label}</div>
             {icon_html}
         </div>
-        <div style="font-size: 28px; font-weight: 700; color: #ffffff; margin-top: 10px; letter-spacing: -0.5px; text-shadow: 0 0 12px rgba(255,255,255,0.08);">{value}</div>
+        <div class="num-value" style="font-size: 28px; font-weight: 700; color: #ffffff; margin-top: 10px; letter-spacing: -0.5px; text-shadow: 0 0 12px rgba(255,255,255,0.08);">{value}</div>
         {delta_html}
     </div>
     """
@@ -199,8 +199,8 @@ def render_premium_portfolio_table(holdings):
             <td><a class="screener-link" href="?ticker={ticker}" target="_self"><span class="ticker-badge">{ticker}</span></a></td>
             <td class="company-name">{azienda}</td>
             <td><span class="sector-pill {sec_class}">{settore}</span></td>
-            <td style="text-align: right; font-weight: 500; color: #CBD5E1;">{quote}</td>
-            <td style="text-align: right; font-weight: 700; color: #ffffff;">{valore}</td>
+            <td class="num-value" style="text-align: right; font-weight: 500; color: #CBD5E1;">{quote}</td>
+            <td class="num-value" style="text-align: right; font-weight: 700; color: #ffffff;">{valore}</td>
             <td>
                 <div class="allocation-bar-container">
                     <div class="allocation-bar-bg">
@@ -291,13 +291,13 @@ def render_premium_screener_table(df):
         <tr>
             <td><a class="screener-link" href="?ticker={ticker}" target="_self"><span class="ticker-badge">{ticker}</span></a></td>
             <td class="company-name">{azienda}</td>
-            <td style="text-align: right; font-weight: 600; color: #ffffff;">{formatted_price}</td>
-            <td style="text-align: right;">{pe_html}</td>
-            <td style="text-align: right;">{div_html}</td>
-            <td style="text-align: right;">{payout_html}</td>
-            <td style="text-align: right;">{eps_g_html}</td>
-            <td style="text-align: right; font-weight: 600; color: #ffffff;">{net_inc_formatted}</td>
-            <td style="text-align: right;">{margin_html}</td>
+            <td class="num-value" style="text-align: right; font-weight: 600; color: #ffffff;">{formatted_price}</td>
+            <td class="num-value" style="text-align: right;">{pe_html}</td>
+            <td class="num-value" style="text-align: right;">{div_html}</td>
+            <td class="num-value" style="text-align: right;">{payout_html}</td>
+            <td class="num-value" style="text-align: right;">{eps_g_html}</td>
+            <td class="num-value" style="text-align: right; font-weight: 600; color: #ffffff;">{net_inc_formatted}</td>
+            <td class="num-value" style="text-align: right;">{margin_html}</td>
         </tr>
         """
     html += """
@@ -412,8 +412,7 @@ def custom_plotly_chart(fig, *args, **kwargs):
     return _original_plotly_chart(fig, *args, **kwargs)
 st.plotly_chart = custom_plotly_chart
 
-# Custom CSS per look "Fintech Premium Glassmorphic" e "Marquee"
-# Custom CSS per look "Institutional Premium" e Leggibilità Avanzata
+# Custom CSS per look "Institutional Premium Glassmorphic" e Leggibilità Avanzata
 st.markdown(f"""
     <style>
     /* Global Background & Smooth Animation */
@@ -424,7 +423,7 @@ st.markdown(f"""
     }}
 
     [data-testid="stAppViewContainer"] {{
-        background: linear-gradient(-45deg, #0a0a12, #171924, #0f0c29, #050510) !important;
+        background: linear-gradient(-45deg, #0a0a12, #121420, #0c0a1a, #05050e) !important;
         background-size: 400% 400% !important;
         animation: gradientShift 30s ease infinite !important;
         color: #e0e0e0 !important;
@@ -435,38 +434,149 @@ st.markdown(f"""
         content: "";
         position: fixed;
         top: 0; left: 0; width: 100%; height: 100%;
-        background: radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.4) 100%);
+        background: radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.3) 100%);
         pointer-events: none;
         z-index: 0;
     }}
 
-    /* Fix Leggibilità Testo */
-    .stMarkdown, p, span, label, .stMetric label {{
-        color: #e0e0e0 !important;
-        font-weight: 300;
-    }}
-    
-    h1, h2, h3 {{
+    /* 4. IDENTITÀ TIPOGRAFICA BESPOKE */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+    h1, h2, h3, [data-testid="stHeader"] {{
+        font-family: 'Outfit', sans-serif !important;
         color: #ffffff !important;
         text-shadow: 0 0 15px rgba(255,255,255,0.1);
         letter-spacing: -0.5px;
     }}
 
-    /* Enhanced Glassmorphic Containers */
-    [data-testid="stMetric"], .stDataFrame, .stExpander, div[data-testid="stVerticalBlock"] > div[style*="background-color"] {{ 
-        background: rgba(255, 255, 255, 0.05) !important; 
-        backdrop-filter: blur(12px) !important;
-        -webkit-backdrop-filter: blur(12px) !important;
-        padding: 20px !important; 
-        border-radius: 16px !important; 
-        border: 1px solid rgba(255, 255, 255, 0.12) !important; 
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
+    .stMarkdown, p, span, label, .stMetric label, .stSelectbox label, .stSlider label, [data-testid="stWidgetLabel"] p {{
+        font-family: 'Inter', sans-serif !important;
+        color: #cbd5e1 !important;
     }}
+
+    /* Numeri e valori quantitativi con JetBrains Mono */
+    div[data-testid="stMetric-value"], 
+    .num-value, 
+    .ticker-badge, 
+    .allocation-text, 
+    .allocation-bar-container span {{
+        font-family: 'JetBrains Mono', monospace !important;
+        font-weight: 500 !important;
+        letter-spacing: -0.2px !important;
+    }}
+
+    /* 6. STRUTTURA DI PROFONDITÀ (GLASSMORPHISM STRATIFICATO) */
+    [data-testid="stMetric"], .stDataFrame, .stExpander, div[data-testid="stVerticalBlock"] > div[style*="background-color"] {{ 
+        background: rgba(255, 255, 255, 0.02) !important; 
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+        padding: 22px !important; 
+        border-radius: 18px !important; 
+        border: 1px solid rgba(255, 255, 255, 0.06) !important; 
+        box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45) !important;
+        transition: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    }}
+    
+    [data-testid="stMetric"]:hover, .stExpander:hover {{
+        transform: translateY(-3px) !important;
+        border-color: rgba(255, 255, 255, 0.12) !important;
+        box-shadow: 0 18px 45px 0 rgba(0, 0, 0, 0.55), 0 0 25px rgba(79, 172, 254, 0.05) !important;
+        background: rgba(255, 255, 255, 0.03) !important;
+    }}
+
+    /* 1. CONTROLLI DI INPUT PREMIUM (FORM, SLIDERS & BUTTONS) */
+    /* Input di Testo e Numerici */
+    div[data-testid="stNumberInput"] input, 
+    div[data-testid="stTextInput"] input,
+    div[data-baseweb="select"] > div {{
+        background-color: rgba(255, 255, 255, 0.02) !important;
+        border: 1px solid rgba(255, 255, 255, 0.07) !important;
+        border-radius: 12px !important;
+        color: #ffffff !important;
+        font-family: 'Inter', sans-serif !important;
+        padding: 8px 12px !important;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+    }}
+    
+    div[data-testid="stNumberInput"] input:focus, 
+    div[data-testid="stTextInput"] input:focus,
+    div[data-baseweb="select"] > div:focus-within {{
+        border-color: rgba(79, 172, 254, 0.4) !important;
+        box-shadow: 0 0 15px rgba(79, 172, 254, 0.12), inset 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+        background-color: rgba(255, 255, 255, 0.04) !important;
+    }}
+
+    /* Sliders Streamlit */
+    div[data-testid="stSlider"] [data-baseweb="slider"] {{
+        background-color: transparent !important;
+    }}
+    div[data-testid="stSlider"] [data-baseweb="slider"] > div {{
+        background-color: rgba(255, 255, 255, 0.06) !important;
+        height: 6px !important;
+        border-radius: 3px !important;
+    }}
+    div[data-testid="stSlider"] [role="slider"] {{
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%) !important;
+        border: 2px solid #ffffff !important;
+        width: 16px !important;
+        height: 16px !important;
+        box-shadow: 0 0 10px rgba(79, 172, 254, 0.3) !important;
+        transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    }}
+    div[data-testid="stSlider"] [role="slider"]:hover {{
+        transform: scale(1.2) !important;
+        box-shadow: 0 0 14px rgba(79, 172, 254, 0.5) !important;
+    }}
+
+    /* Pulsanti Nativi di Streamlit */
+    div.stButton > button {{
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 12px !important;
+        padding: 8px 20px !important;
+        font-family: 'Outfit', sans-serif !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.5px !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    }}
+    div.stButton > button:hover {{
+        border-color: rgba(79, 172, 254, 0.35) !important;
+        background: linear-gradient(135deg, rgba(79, 172, 254, 0.08) 0%, rgba(0, 242, 254, 0.03) 100%) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(79, 172, 254, 0.12) !important;
+    }}
+    div.stButton > button:active {{
+        transform: translateY(1px) !important;
+    }}
+
+    /* 5. MOTION DESIGN & MICRO-INTERAZIONI (FADE-IN STAGGERED) */
+    @keyframes fadeInUp {{
+        from {{
+            opacity: 0;
+            transform: translateY(12px);
+        }}
+        to {{
+            opacity: 1;
+            transform: translateY(0);
+        }}
+    }}
+
+    [data-testid="stVerticalBlock"] > div {{
+        animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }}
+    [data-testid="stVerticalBlock"] > div:nth-child(1) {{ animation-delay: 0.04s; }}
+    [data-testid="stVerticalBlock"] > div:nth-child(2) {{ animation-delay: 0.08s; }}
+    [data-testid="stVerticalBlock"] > div:nth-child(3) {{ animation-delay: 0.12s; }}
+    [data-testid="stVerticalBlock"] > div:nth-child(4) {{ animation-delay: 0.16s; }}
+    [data-testid="stVerticalBlock"] > div:nth-child(5) {{ animation-delay: 0.20s; }}
 
     /* Sidebar Styling */
     [data-testid="stSidebar"] {{
-        background-color: #050510 !important;
-        border-right: 1px solid rgba(255,255,255,0.05);
+        background-color: #04040a !important;
+        border-right: 1px solid rgba(255,255,255,0.04);
     }}
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {{
         background: transparent !important;
@@ -480,10 +590,10 @@ st.markdown(f"""
     .ticker-wrap {{
         width: 100%;
         overflow: hidden;
-        background: rgba(0, 0, 0, 0.6);
-        backdrop-filter: blur(5px);
+        background: rgba(4, 4, 10, 0.7);
+        backdrop-filter: blur(8px);
         padding: 10px 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         margin-top: -30px; 
         margin-bottom: 20px;
         white-space: nowrap;
@@ -507,17 +617,17 @@ st.markdown(f"""
 
     /* Custom Scrollbar for Premium Feel */
     ::-webkit-scrollbar {{
-        width: 8px;
+        width: 6px;
     }}
     ::-webkit-scrollbar-track {{
         background: rgba(0,0,0,0.1);
     }}
     ::-webkit-scrollbar-thumb {{
-        background: rgba(255,255,255,0.1);
+        background: rgba(255,255,255,0.06);
         border-radius: 10px;
     }}
     ::-webkit-scrollbar-thumb:hover {{
-        background: rgba(255,255,255,0.2);
+        background: rgba(255,255,255,0.12);
     }}
     </style>
     <div class="ticker-wrap">
