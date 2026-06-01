@@ -234,7 +234,10 @@ def render_premium_screener_table(df):
                 <th style="text-align: right;">Prezzo</th>
                 <th style="text-align: right;">P/E Ratio</th>
                 <th style="text-align: right;">Div Yield %</th>
-                <th style="text-align: right;">Market Cap (Mld $)</th>
+                <th style="text-align: right;">Payout %</th>
+                <th style="text-align: right;">EPS Growth %</th>
+                <th style="text-align: right;">Net Income</th>
+                <th style="text-align: right;">Profit Margin</th>
             </tr>
         </thead>
         <tbody>
@@ -244,7 +247,10 @@ def render_premium_screener_table(df):
         azienda = row.get('Azienda', 'N/A')
         pe = row.get('P/E', None)
         div = row.get('Div Yield %', 0.0)
-        mcap = row.get('Market Cap (B)', 0.0)
+        payout = row.get('Payout Ratio %', 0.0)
+        eps_g = row.get('EPS Growth %', 0.0)
+        net_inc = row.get('Net Income (M)', 0.0)
+        margin = row.get('Profit Margin %', 0.0)
         prezzo = row.get('Prezzo', 'N/A')
         
         # Formattazione prezzo
@@ -269,6 +275,18 @@ def render_premium_screener_table(df):
         # Div Yield
         div_html = f'<span style="color: #00f2fe; font-weight: 700;">{div:.2f}%</span>' if div > 0 else '<span style="color: #8A929A;">0.00%</span>'
         
+        # Payout
+        payout_html = f'<span style="color: #E2E8F0;">{payout:.1f}%</span>' if payout > 0 else '<span style="color: #8A929A;">0.0%</span>'
+        
+        # EPS Growth
+        eps_g_html = f'<span style="color: #00FF7F; font-weight: 600;">+{eps_g:.1f}%</span>' if eps_g > 0 else f'<span style="color: #FF3B30; font-weight: 600;">{eps_g:.1f}%</span>'
+        
+        # Net Income
+        net_inc_formatted = f"${net_inc/1000:.2f}B" if net_inc >= 1000 else f"${net_inc:.1f}M"
+        
+        # Margin
+        margin_html = f'<span style="color: #00FF7F; font-weight: 600;">{margin:.1f}%</span>' if margin >= 15 else f'<span style="color: #E2E8F0;">{margin:.1f}%</span>'
+        
         html += f"""
         <tr>
             <td><a class="screener-link" href="?ticker={ticker}" target="_self"><span class="ticker-badge">{ticker}</span></a></td>
@@ -276,7 +294,10 @@ def render_premium_screener_table(df):
             <td style="text-align: right; font-weight: 600; color: #ffffff;">{formatted_price}</td>
             <td style="text-align: right;">{pe_html}</td>
             <td style="text-align: right;">{div_html}</td>
-            <td style="text-align: right; font-weight: 700; color: #ffffff;">${mcap:,.2f}B</td>
+            <td style="text-align: right;">{payout_html}</td>
+            <td style="text-align: right;">{eps_g_html}</td>
+            <td style="text-align: right; font-weight: 600; color: #ffffff;">{net_inc_formatted}</td>
+            <td style="text-align: right;">{margin_html}</td>
         </tr>
         """
     html += """
@@ -3549,17 +3570,25 @@ elif page_choice == "🔍 Stock Screener":
     except Exception as e:
         st.error("Impossibile caricare S&P 500.")
         sp500_tickers = []
+
+    st.markdown("#### ⚙️ Parametri di Screening Quantitativo")
     
-    sc1, sc2, sc3 = st.columns(3)
-    max_pe = sc1.number_input("P/E Ratio Massimo", value=25.0)
-    min_div = sc2.number_input("Dividend Yield Minimo (%)", value=2.0)
-    min_cap = sc3.number_input("Market Cap Min. (Billion $)", value=100)
+    col_row1 = st.columns(4)
+    max_pe = col_row1[0].number_input("P/E Ratio Massimo", value=25.0, help="Filtra aziende con P/E inferiore o uguale a questa soglia (Utile/Value).")
+    min_div = col_row1[1].number_input("Dividend Yield Minimo (%)", value=2.0, help="Soglia minima di rendimento da dividendo annuale.")
+    min_cap = col_row1[2].number_input("Market Cap Min. (Bld $)", value=50, help="Capitalizzazione di mercato minima in miliardi di dollari.")
+    max_payout = col_row1[3].number_input("Payout Ratio Massimo (%)", value=70.0, help="Soglia massima di utili destinati ai dividendi (sostenibilità).")
+    
+    col_row2 = st.columns(4)
+    min_eps_growth = col_row2[0].number_input("EPS Growth 5A CAGR Min. (%)", value=5.0, help="Aumento annualizzato previsto degli utili per azione (EPS) nei prossimi 5 anni.")
+    min_div_growth = col_row2[1].number_input("Div Growth 5A CAGR Min. (%)", value=4.0, help="Crescita annualizzata minima stimata dei dividendi.")
+    min_net_income = col_row2[2].number_input("Net Income Min. (Mln $)", value=500.0, help="Utile netto minimo cumulato in milioni di dollari.")
+    min_profit_margin = col_row2[3].number_input("Net Profit Margin Min. (%)", value=10.0, help="Margine di profitto netto minimo (%) dell'azienda.")
     
     if st.button("🚀 Esegui Screen", type="primary"):
         if sp500_tickers:
             with st.spinner(f"Scansione parallela di {len(sp500_tickers)} titoli S&P 500 (15-20 sec)... | '{random.choice(WALL_STREET_QUOTES)}'"):
                 
-
                 def evaluate_ticker(tkr):
                     try:
                         tk_info = fetch_stock_info(tkr)
@@ -3577,8 +3606,10 @@ elif page_choice == "🔍 Stock Screener":
                                 pass
                             return val if isinstance(val, (int, float)) else None
 
+                        # 1. P/E
                         pe = _safe_num(tk_info.get('trailingPE'))
-                        # Dividend Yield: direct field or compute from dividendRate/currentPrice
+                        
+                        # 2. Dividend Yield
                         div_yield = _safe_num(tk_info.get('dividendYield'))
                         if div_yield is None:
                             rate = _safe_num(tk_info.get('dividendRate'))
@@ -3586,17 +3617,74 @@ elif page_choice == "🔍 Stock Screener":
                             if rate is not None and price and price > 0:
                                 div_yield = (rate / price) * 100
                         if div_yield is None:
-                            div_yield = 0
+                            div_yield = 0.0
+                        else:
+                            # Se espresso in formato decimale (es. 0.02) convertiamo in percentuale (es. 2.0)
+                            if 0 < div_yield < 1.0:
+                                div_yield = div_yield * 100
+                                
+                        # 3. Market Cap (Billion $)
                         mcap = _safe_num(tk_info.get('marketCap'))
                         mcap_b = (mcap or 0) / 1e9
                         
-                        if pe and pe <= max_pe and div_yield >= min_div and mcap_b >= min_cap:
+                        # 4. EPS Growth next 5Y CAGR
+                        eps_growth = _safe_num(tk_info.get('earningsGrowth'))
+                        if eps_growth is not None:
+                            # Se in formato decimale, scala a percentuale
+                            eps_growth_val = eps_growth * 100 if abs(eps_growth) <= 1.0 else eps_growth
+                        else:
+                            eps_growth_q = _safe_num(tk_info.get('earningsQuarterlyGrowth'))
+                            if eps_growth_q is not None:
+                                eps_growth_val = eps_growth_q * 100 if abs(eps_growth_q) <= 1.0 else eps_growth_q
+                            else:
+                                eps_growth_val = 0.0
+                                
+                        # 5. Payout Ratio (%)
+                        payout = _safe_num(tk_info.get('payoutRatio'))
+                        payout_val = (payout * 100) if payout is not None else 0.0
+                        
+                        # 6. Dividend Growth next 5Y CAGR
+                        if div_yield == 0:
+                            div_growth_val = 0.0
+                        else:
+                            # Legge fiveYearAvgDividendYield o fa fallback su eps_growth_val
+                            five_yr_avg = _safe_num(tk_info.get('fiveYearAvgDividendYield'))
+                            if five_yr_avg is not None:
+                                div_growth_val = five_yr_avg if five_yr_avg > 1.0 else five_yr_avg * 100
+                            else:
+                                div_growth_val = eps_growth_val * 0.8
+                                
+                        # 7. Net Income (Million $)
+                        net_income = _safe_num(tk_info.get('netIncomeToCommon'))
+                        if net_income is None:
+                            net_income = _safe_num(tk_info.get('netIncome'))
+                        net_income_m = (net_income / 1e6) if net_income is not None else 0.0
+                        
+                        # 8. Net Profit Margin (%)
+                        profit_margin = _safe_num(tk_info.get('profitMargins'))
+                        profit_margin_val = (profit_margin * 100) if profit_margin is not None else 0.0
+                        
+                        # Valutazione filtri
+                        pe_match = (pe is not None and pe <= max_pe)
+                        div_match = (div_yield >= min_div)
+                        mcap_match = (mcap_b >= min_cap)
+                        eps_growth_match = (eps_growth_val >= min_eps_growth)
+                        payout_match = (payout_val <= max_payout)
+                        div_growth_match = (div_growth_val >= min_div_growth)
+                        net_income_match = (net_income_m >= min_net_income)
+                        profit_margin_match = (profit_margin_val >= min_profit_margin)
+                        
+                        if pe_match and div_match and mcap_match and eps_growth_match and payout_match and div_growth_match and net_income_match and profit_margin_match:
                             return {
                                 "Ticker": tkr,
                                 "Azienda": tk_info.get('shortName', ''),
                                 "P/E": round(pe, 2),
                                 "Div Yield %": round(div_yield, 2),
                                 "Market Cap (B)": round(mcap_b, 2),
+                                "Payout Ratio %": round(payout_val, 2),
+                                "EPS Growth %": round(eps_growth_val, 2),
+                                "Net Income (M)": round(net_income_m, 2),
+                                "Profit Margin %": round(profit_margin_val, 2),
                                 "Prezzo": tk_info.get('currentPrice', 'N/A')
                             }
                     except:
