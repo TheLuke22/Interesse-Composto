@@ -858,6 +858,23 @@ def fetch_stock_info(ticker, _v=1):
             pass
 
     if info and ('currentPrice' in info or 'regularMarketPrice' in info):
+        # Calcola l'EPS CAGR storico reale dagli statements finanziari
+        try:
+            inc = stock.income_stmt
+            if inc is not None and not inc.empty:
+                for row_name in ['Diluted EPS', 'Basic EPS', 'Net Income']:
+                    if row_name in inc.index:
+                        eps_series = inc.loc[row_name].dropna()
+                        if len(eps_series) >= 2:
+                            latest_val = eps_series.iloc[0]
+                            oldest_val = eps_series.iloc[-1]
+                            num_years = len(eps_series) - 1
+                            if latest_val > 0 and oldest_val > 0 and num_years > 0:
+                                eps_cagr = ((latest_val / oldest_val) ** (1 / num_years) - 1) * 100
+                                info['epsGrowth5Y'] = eps_cagr
+                                break
+        except Exception:
+            pass
         return info
     
     # Se ancora non abbiamo i dati base, procediamo col fallback quantitativo
@@ -3610,34 +3627,37 @@ elif page_choice == "🔍 Stock Screener":
                         pe = _safe_num(tk_info.get('trailingPE'))
                         
                         # 2. Dividend Yield
-                        div_yield = _safe_num(tk_info.get('dividendYield'))
-                        if div_yield is None:
-                            rate = _safe_num(tk_info.get('dividendRate'))
-                            price = _safe_num(tk_info.get('currentPrice'))
-                            if rate is not None and price and price > 0:
-                                div_yield = (rate / price) * 100
-                        if div_yield is None:
-                            div_yield = 0.0
+                        div_rate = _safe_num(tk_info.get('dividendRate'))
+                        price = _safe_num(tk_info.get('currentPrice'))
+                        
+                        if div_rate is not None and div_rate > 0 and price is not None and price > 0:
+                            div_yield = (div_rate / price) * 100
                         else:
-                            # Se espresso in formato decimale (es. 0.02) convertiamo in percentuale (es. 2.0)
-                            if 0 < div_yield < 1.0:
-                                div_yield = div_yield * 100
+                            div_yield = _safe_num(tk_info.get('dividendYield'))
+                            if div_yield is not None:
+                                if div_yield < 0.2:  # se è in formato decimale (es. 0.025 per 2.5%)
+                                    div_yield = div_yield * 100
+                            else:
+                                div_yield = 0.0
                                 
                         # 3. Market Cap (Billion $)
                         mcap = _safe_num(tk_info.get('marketCap'))
                         mcap_b = (mcap or 0) / 1e9
                         
                         # 4. EPS Growth next 5Y CAGR
-                        eps_growth = _safe_num(tk_info.get('earningsGrowth'))
-                        if eps_growth is not None:
-                            # Se in formato decimale, scala a percentuale
-                            eps_growth_val = eps_growth * 100 if abs(eps_growth) <= 1.0 else eps_growth
+                        eps_cagr = _safe_num(tk_info.get('epsGrowth5Y'))
+                        if eps_cagr is not None:
+                            eps_growth_val = eps_cagr
                         else:
-                            eps_growth_q = _safe_num(tk_info.get('earningsQuarterlyGrowth'))
-                            if eps_growth_q is not None:
-                                eps_growth_val = eps_growth_q * 100 if abs(eps_growth_q) <= 1.0 else eps_growth_q
+                            eps_growth = _safe_num(tk_info.get('earningsGrowth'))
+                            if eps_growth is not None:
+                                eps_growth_val = eps_growth * 100 if abs(eps_growth) <= 1.0 else eps_growth
                             else:
-                                eps_growth_val = 0.0
+                                eps_growth_q = _safe_num(tk_info.get('earningsQuarterlyGrowth'))
+                                if eps_growth_q is not None:
+                                    eps_growth_val = eps_growth_q * 100 if abs(eps_growth_q) <= 1.0 else eps_growth_q
+                                else:
+                                    eps_growth_val = 0.0
                                 
                         # 5. Payout Ratio (%)
                         payout = _safe_num(tk_info.get('payoutRatio'))
