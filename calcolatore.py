@@ -2299,14 +2299,19 @@ elif page_choice == "📊 Stock Tracker":
                         
                     shares_at_year_end[year] = sim_shares_drip
                     
-                    # 2. Simulatore in base allo stato scelto dall'utente
-                    div_incassato = div * (shares_with_drip if drip_active else shares_no_drip)
+                    # 2. Simulatore completo per entrambi i casi (incondizionato per statistiche corrette)
                     if div > 0:
-                        div_history.append({"Date": date, "Amount": div_incassato})
-                        if drip_active:
-                            shares_with_drip += div_incassato / price
-                        else:
-                            cash_no_drip += div_incassato
+                        # Caso con DRIP: dividendi reinvestiti sulle quote accumulate finora
+                        div_incassato_drip = div * shares_with_drip
+                        shares_with_drip += div_incassato_drip / price
+                        
+                        # Caso senza DRIP: dividendi incassati come cash sulle quote iniziali (che non variano)
+                        div_incassato_no_drip = div * shares_no_drip
+                        cash_no_drip += div_incassato_no_drip
+                        
+                        # Salviamo lo storico dei dividendi incassati in base alla scelta dell'utente
+                        div_history_amount = div_incassato_drip if drip_active else div_incassato_no_drip
+                        div_history.append({"Date": date, "Amount": div_history_amount})
                             
                     val_with_drip_series.append(shares_with_drip * price)
                     val_no_drip_series.append((shares_no_drip * price) + cash_no_drip)
@@ -2388,7 +2393,22 @@ elif page_choice == "📊 Stock Tracker":
                     
                     tot_ret_drip = (val_with_drip_series[-1] / a_cap) - 1
                     tot_ret_no_drip = (val_no_drip_series[-1] / a_cap) - 1
-                    div_rate_val = info.get('dividendRate', 0) or 0
+                    
+                    # Calcolo robusto del tasso di dividendo con fallbacks
+                    div_rate_val = info.get('dividendRate')
+                    if div_rate_val is None or div_rate_val == 0:
+                        div_rate_val = info.get('trailingAnnualDividendRate')
+                    if div_rate_val is None or div_rate_val == 0:
+                        # Fallback sui dividendi storici degli ultimi 12 mesi
+                        if not hist_data.empty:
+                            last_date = hist_data.index[-1]
+                            one_year_ago = last_date - pd.DateOffset(years=1)
+                            recent_divs = hist_data.loc[one_year_ago:last_date, 'Dividends']
+                            if not recent_divs.empty:
+                                div_rate_val = recent_divs.sum()
+                    if div_rate_val is None:
+                        div_rate_val = 0.0
+
                     yoc_drip = (div_rate_val * shares_with_drip) / a_cap
                     yoc_no_drip = (div_rate_val * shares_no_drip) / a_cap
 
