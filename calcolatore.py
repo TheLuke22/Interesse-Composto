@@ -16,6 +16,7 @@ import random
 import os
 import textwrap
 import requests
+import concurrent.futures
 
 # --- YAHOO FINANCE ---
 # (Il yf_session personalizzato è stato rimosso in quanto yfinance lo gestisce nativamente con curl_cffi per evitare i blocchi)
@@ -571,6 +572,22 @@ def get_batch_prices(tickers):
     return data.iloc[-1].to_dict()
 
 
+@st.cache_data(ttl=3600)
+def get_cached_close_data(ticker_tuple, period=None, start=None, end=None):
+    """Scarica prezzi Close in batch e li cache-a per grafici/correlazioni."""
+    ticker_list = list(ticker_tuple)
+    if not ticker_list:
+        return pd.DataFrame()
+    data = yf.download(ticker_list, period=period, start=start, end=end, progress=False, threads=True)
+    if data.empty:
+        return pd.DataFrame()
+    if isinstance(data.columns, pd.MultiIndex):
+        return data['Close']
+    if 'Close' in data:
+        return data['Close'].to_frame(name=ticker_list[0]) if isinstance(data['Close'], pd.Series) else data['Close']
+    return data
+
+
 @st.cache_data(ttl=300)
 def fetch_watchlist_prices(ticker_tuple):
     """Fetch 5-day price data for watchlist tickers (cached 5 min)."""
@@ -729,6 +746,24 @@ def fetch_stock_info(ticker, _v=1):
     except Exception:
         return {'symbol': ticker, 'shortName': ticker, '_rate_limited': True}
 
+
+@st.cache_data(ttl=3600)
+def fetch_stock_infos_batch(ticker_tuple):
+    """Recupera info/dividendi in parallelo per evitare una cascata seriale di richieste Yahoo/FMP."""
+    ticker_list = list(ticker_tuple)
+    if not ticker_list:
+        return {}
+
+    def _fetch(tk):
+        try:
+            return tk, fetch_stock_info(tk)
+        except Exception:
+            return tk, None
+
+    workers = min(8, len(ticker_list))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        return dict(executor.map(_fetch, ticker_list))
+
 def push_portfolio_to_gsheets(p_list):
     try:
         url = st.session_state.get('gsheets_url')
@@ -748,12 +783,8 @@ def push_portfolio_to_gsheets(p_list):
         prices_dict = get_batch_prices(list(set(tickers)))
         
         # Fetch stock info per dividendi (utilizza la cache con fallback robusto)
-        stock_infos = {}
-        for tk in list(set(tickers)):
-            try:
-                stock_infos[tk] = fetch_stock_info(tk)
-            except Exception:
-                stock_infos[tk] = None
+        unique_tickers = tuple(sorted(set(tickers)))
+        stock_infos = fetch_stock_infos_batch(unique_tickers)
         
         enriched_data = []
         for item in p_list:
@@ -1832,11 +1863,9 @@ elif page_choice == "📊 Stock Tracker":
                         st.plotly_chart(fig_cand, use_container_width=True)
                         
                     else:
-                        bench_raw = yf.download(a_bench, start=hist_data.index[0], end=hist_data.index[-1], progress=False)
-                        if not bench_raw.empty:
-                            if 'Close' in bench_raw.columns:
-                                bench_close = bench_raw['Close'].squeeze()
-                            else: bench_close = bench_raw.squeeze() # Se non usa multistrato
+                        bench_close_df = get_cached_close_data((a_bench,), start=hist_data.index[0], end=hist_data.index[-1])
+                        if not bench_close_df.empty:
+                            bench_close = bench_close_df[a_bench].squeeze() if a_bench in bench_close_df.columns else bench_close_df.squeeze()
                             
                             stock_close = hist_data['Close'].squeeze()
                             
@@ -2747,12 +2776,8 @@ function doPost(e) {
             prices_dict = get_batch_prices(list(set(tickers)))
             
             # Fetch stock info per dividendi (utilizza la cache con fallback robusto)
-            stock_infos = {}
-            for tk in list(set(tickers)):
-                try:
-                    stock_infos[tk] = fetch_stock_info(tk)
-                except Exception:
-                    stock_infos[tk] = None
+            unique_tickers = tuple(sorted(set(tickers)))
+            stock_infos = fetch_stock_infos_batch(unique_tickers)
             
             portfolio_data = []
             total_portfolio_value = 0
@@ -2874,7 +2899,7 @@ function doPost(e) {
         unique_portfolio_tickers = list(set(tickers))
         if len(unique_portfolio_tickers) >= 2:
             try:
-                corr_data = yf.download(unique_portfolio_tickers, period="1y", progress=False)['Close']
+                corr_data = get_cached_close_data(tuple(sorted(unique_portfolio_tickers)), period="1y")
                 if isinstance(corr_data, pd.Series):
                     st.info("Aggiungi almeno 2 titoli diversi per la matrice di correlazione.")
                 elif not corr_data.empty:
@@ -3199,10 +3224,13 @@ elif page_choice == "🌍 Macro & Market":
             "EUR/USD (Valuta)": "EURUSD=X"
         }
         
+        macro_close = get_cached_close_data(tuple(macro_tickers.values()), period="6mo")
         macro_data = {}
         for name, tk in macro_tickers.items():
-            hist = yf.Ticker(tk).history(period="6mo")
-            if not hist.empty: macro_data[name] = hist['Close']
+            if tk in macro_close.columns:
+                series = macro_close[tk].dropna()
+                if not series.empty:
+                    macro_data[name] = series
                 
         items = list(macro_data.items())
         cols_per_row = 3
@@ -3638,8 +3666,8 @@ elif page_choice == "👑 Super Investors":
                                     inv_owner.append(inv)
                                     allocs.append(item['Allocazione %'])
                         
-                        unique_tkrs = list(set(all_tickers))
-                        data_1y = yf.download(unique_tkrs, period="1y", progress=False)['Close']
+                        unique_tkrs = tuple(sorted(set(all_tickers)))
+                        data_1y = get_cached_close_data(unique_tkrs, period="1y")
                         
                         if not data_1y.empty:
                             if isinstance(data_1y, pd.Series):
@@ -3778,5 +3806,3 @@ elif page_choice == "👑 Super Investors":
             st.info("Insider Trades (CEO, CFO, Board Members) verranno implementati leggendo i form SEC 4.")
         with t4:
             st.info("Le Stock Picks istituzionali verranno generate filtrando l'universo del S&P 500 in base alle logiche dell'Hedge Fund selezionato.")
-
-
