@@ -1820,9 +1820,6 @@ page_choice = st.sidebar.radio("Tool:", [
     "🤖 Hedge Fund OS AI"
 ], label_visibility="collapsed", key="navigation_page")
 
-# Render Sidebar Admin Login Box for Creator Access
-monetization_engine.render_admin_login_sidebar()
-
 
 # ==========================================
 # PAGE 0: HOME
