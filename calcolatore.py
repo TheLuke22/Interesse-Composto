@@ -22,6 +22,7 @@ import os
 import logging
 import time
 from functools import wraps
+import qualtrim_engine
 
 # --- SYSTEM LOGGING CONFIGURATION ---
 logging.basicConfig(
@@ -967,7 +968,7 @@ def analyze_portfolio_diversification(portfolio_df, total_value):
     assets_text = ""
     for index, row in portfolio_df.iterrows():
         ticker = row['Ticker']
-        peso_perc = (row['Valore Totale ($)'] / total_value) * 100
+        peso_perc = (row['Valore Totale ($)'] / total_value * 100) if total_value > 0.0 else 0.0
         assets_text += f"- {ticker}: {peso_perc:.2f}%\n"
 
     prompt = f"""Agisci come un consulente finanziario esperto in gestione del rischio. 
@@ -1809,6 +1810,7 @@ page_choice = st.sidebar.radio("Tool:", [
     "🏠 Home",
     "📈 Compound Interest",
     "📊 Stock Tracker",
+    "🧩 Business Segments",
     "📁 My Portfolio",
     "📰 Financial News",
     "👑 Super Investors",
@@ -3696,21 +3698,44 @@ function doPost(e) {
                     stock_infos[tk] = None
 
             portfolio_data = []
-            total_portfolio_value = 0
+            total_portfolio_value = 0.0
             total_portfolio_cost = 0.0
             total_trailing_dividends = 0.0
             total_forward_dividends = 0.0
 
             for item in st.session_state['portfolio']:
                 ticker = item['ticker']
-                shares = item['shares']
-                purchase_price = float(item.get('purchase_price', 0.0))
+                
+                # Safe conversions to float for shares
+                try:
+                    shares = float(item.get('shares', 0.0))
+                except Exception:
+                    shares = 0.0
+                if shares is None or pd.isna(shares):
+                    shares = 0.0
+
+                # Safe conversions to float for purchase_price
+                try:
+                    purchase_price = float(item.get('purchase_price', 0.0))
+                except Exception:
+                    purchase_price = 0.0
+                if purchase_price is None or pd.isna(purchase_price):
+                    purchase_price = 0.0
 
                 # Otteniamo il prezzo dalla cache batch
                 current_price = prices_dict.get(ticker, 0.0)
                 # Float check per sicurezza
                 if isinstance(current_price, pd.Series):
                     current_price = current_price.iloc[0]
+
+                # Sanitize current_price (it could be NaN or None)
+                if current_price is None or pd.isna(current_price):
+                    current_price = 0.0
+                else:
+                    try:
+                        current_price = float(current_price)
+                    except Exception:
+                        current_price = 0.0
 
                 # Fallback per il prezzo d'acquisto se è 0.0 (es. posizioni esistenti non modificate)
                 if purchase_price == 0.0:
@@ -3724,16 +3749,26 @@ function doPost(e) {
                 info = stock_infos.get(ticker) or {}
 
                 trailing_div_rate = info.get('trailingAnnualDividendRate')
-                if trailing_div_rate is None or trailing_div_rate == 0:
+                if trailing_div_rate is None or trailing_div_rate == 0 or pd.isna(trailing_div_rate):
                     trailing_div_rate = info.get('dividendRate')
-                if trailing_div_rate is None:
+                if trailing_div_rate is None or pd.isna(trailing_div_rate):
                     trailing_div_rate = 0.0
+                else:
+                    try:
+                        trailing_div_rate = float(trailing_div_rate)
+                    except Exception:
+                        trailing_div_rate = 0.0
 
                 forward_div_rate = info.get('dividendRate')
-                if forward_div_rate is None or forward_div_rate == 0:
+                if forward_div_rate is None or forward_div_rate == 0 or pd.isna(forward_div_rate):
                     forward_div_rate = info.get('trailingAnnualDividendRate')
-                if forward_div_rate is None:
+                if forward_div_rate is None or pd.isna(forward_div_rate):
                     forward_div_rate = 0.0
+                else:
+                    try:
+                        forward_div_rate = float(forward_div_rate)
+                    except Exception:
+                        forward_div_rate = 0.0
 
                 # Calcola YOC individuale
                 yoc = 0.0
@@ -4014,11 +4049,24 @@ elif page_choice == "📰 Financial News":
                     tree_data = []
                     for item in st.session_state['portfolio']:
                         tk = item['ticker']
-                        shares = item['shares']
+                        # Safe conversions to float for shares
+                        try:
+                            shares = float(item.get('shares', 0.0))
+                        except Exception:
+                            shares = 0.0
+                        if shares is None or pd.isna(shares):
+                            shares = 0.0
 
                         current_price = prices_dict.get(tk, 1.0)
                         if isinstance(current_price, pd.Series):
                             current_price = current_price.iloc[0]
+                        if current_price is None or pd.isna(current_price):
+                            current_price = 0.0
+                        else:
+                            try:
+                                current_price = float(current_price)
+                            except Exception:
+                                current_price = 0.0
                         valore_monetario = shares * current_price
 
                         tk_news = fetch_news(tk)
@@ -5125,3 +5173,207 @@ elif page_choice == "🤖 Hedge Fund OS AI":
                         st.markdown(risk_output)
             except Exception as e:
                 st.error(f"Si è verificato un errore durante l'audit: {e}")
+
+# ==========================================
+# PAGE: BUSINESS SEGMENTS & FINANCIAL FLOW
+# ==========================================
+elif page_choice == "🧩 Business Segments":
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, rgba(15,23,42,0.95) 0%, rgba(30,58,138,0.4) 100%); border: 1px solid rgba(0, 242, 254, 0.25); border-radius: 20px; padding: 24px; margin-bottom: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+            <div>
+                <span class="ticker-badge" style="font-size: 13px; padding: 5px 12px;">Business Segments Pro</span>
+                <h2 style="color: #FFFFFF; font-family: 'Outfit', sans-serif; font-size: 28px; margin: 8px 0 4px 0; font-weight: 800;">🧩 Business Segment Breakdown & Financial Flow</h2>
+                <p style="color: #94A3B8; font-size: 14px; margin: 0;">Analisi visiva multi-anno per segmento aziendale, area geografica e diagramma di flusso Sankey (100% Gratis).</p>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Top Selector Row (Company & Period Selection)
+    c_sel1, c_sel2, c_sel3 = st.columns([2, 1, 1])
+    
+    with c_sel1:
+        preset_ticker = st.selectbox(
+            "Azienda Target (Quick Select):",
+            options=[
+                "AAPL - Apple Inc.",
+                "MSFT - Microsoft Corporation",
+                "GOOGL - Alphabet (Google)",
+                "AMZN - Amazon.com",
+                "NVDA - NVIDIA Corporation",
+                "TSLA - Tesla, Inc.",
+                "META - Meta Platforms",
+                "NFLX - Netflix",
+                "KO - The Coca-Cola Company",
+                "DIS - The Walt Disney Company"
+            ],
+            index=0
+        )
+        selected_preset = preset_ticker.split(" - ")[0]
+        
+    with c_sel2:
+        custom_ticker = st.text_input("Oppure Ticker Personalizzato:", placeholder="Es. WMT, COST, AMD...").upper().strip()
+        
+    with c_sel3:
+        period_choice = st.radio(
+            "Periodo Temporale:",
+            options=["Annual (FY)", "Quarterly (Q)"],
+            horizontal=True,
+            key="qualtrim_period_select"
+        )
+        
+    ticker_to_use = custom_ticker if custom_ticker else selected_preset
+    
+    # Fetch Segment & Financial Data
+    with st.spinner(f"Caricamento dati di segmento ({period_choice}) per {ticker_to_use}..."):
+        company_data = qualtrim_engine.get_company_segment_data(ticker_to_use, period=period_choice)
+        
+    if not company_data:
+        st.error(f"Impossibile recuperare dati per {ticker_to_use}. Verifica il simbolo ticker.")
+    else:
+        if company_data.get("_is_fallback"):
+            st.info(f"ℹ️ Dati stimati in tempo reale tramite yfinance/SEC per {ticker_to_use}.")
+            
+        periods = company_data["periods"]
+        latest_p = periods[-1]
+        bus_segs = company_data["business_segments"]
+        
+        # Calculate Top Segment and Fastest Growing Segment
+        top_segment = max(bus_segs.keys(), key=lambda k: bus_segs[k][-1] if bus_segs[k] else 0)
+        top_seg_val = bus_segs[top_segment][-1]
+        
+        # Growth Rate calculation
+        fastest_growth_seg = top_segment
+        max_growth_pct = -999.0
+        for seg_k, vals in bus_segs.items():
+            if len(vals) >= 2 and vals[-2] > 0:
+                growth = ((vals[-1] - vals[-2]) / vals[-2]) * 100
+                if growth > max_growth_pct:
+                    max_growth_pct = growth
+                    fastest_growth_seg = seg_k
+                    
+        geo_segs = company_data.get("geographic_segments", {})
+        top_geo = max(geo_segs.keys(), key=lambda k: geo_segs[k][-1] if geo_segs[k] else 0) if geo_segs else "N/A"
+        
+        # Glassmorphic KPI Cards
+        kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
+        
+        with kpi_col1:
+            st.markdown(f"""
+            <div class="custom-kpi-card">
+                <div style="color: #8A929A; font-size: 11px; font-weight: 700; text-transform: uppercase;">Azienda Target</div>
+                <div style="color: #FFFFFF; font-size: 22px; font-weight: 800; margin: 4px 0;">{company_data['name']}</div>
+                <div style="color: #00F2FE; font-size: 12px; font-weight: 600;">{ticker_to_use} ({company_data['currency']})</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        with kpi_col2:
+            rev_val = company_data['sankey_latest'].get('Revenue', 0)
+            st.markdown(f"""
+            <div class="custom-kpi-card">
+                <div style="color: #8A929A; font-size: 11px; font-weight: 700; text-transform: uppercase;">Ricavi ({latest_p})</div>
+                <div style="color: #00FF7F; font-size: 24px; font-weight: 800; margin: 4px 0;">${rev_val:.1f} B</div>
+                <div style="color: #94A3B8; font-size: 12px; font-weight: 600;">Totale Periodo ({company_data['unit']})</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        with kpi_col3:
+            st.markdown(f"""
+            <div class="custom-kpi-card">
+                <div style="color: #8A929A; font-size: 11px; font-weight: 700; text-transform: uppercase;">Top Segmento</div>
+                <div style="color: #F59E0B; font-size: 18px; font-weight: 800; margin: 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{top_segment}</div>
+                <div style="color: #00F2FE; font-size: 12px; font-weight: 600;">${top_seg_val:.1f} B ({periods[-1]})</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        with kpi_col4:
+            growth_text = f"+{max_growth_pct:.1f}%" if max_growth_pct > 0 else f"{max_growth_pct:.1f}%"
+            st.markdown(f"""
+            <div class="custom-kpi-card">
+                <div style="color: #8A929A; font-size: 11px; font-weight: 700; text-transform: uppercase;">Segmento a Maggior Crescita</div>
+                <div style="color: #EC4899; font-size: 18px; font-weight: 800; margin: 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{fastest_growth_seg}</div>
+                <div style="color: #00FF7F; font-size: 12px; font-weight: 600;">Crescita: {growth_text} vs periodo prec.</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        st.divider()
+        
+        # Interactive Dashboard Tabs
+        tab_bus, tab_geo, tab_sankey, tab_fin = st.tabs([
+            "📊 Segmenti Aziendali", 
+            "🌍 Ripartizione Geografica", 
+            "💸 Diagramma Sankey", 
+            "📈 Trend Finanziari Multi-Anno"
+        ])
+        
+        with tab_bus:
+            st.subheader(f"📊 Ricavi per Segmento Aziendale ({company_data['name']} - {period_choice})")
+            
+            v_col1, v_col2 = st.columns([3, 1])
+            with v_col1:
+                view_mode = st.radio(
+                    "Modalità Grafico:", 
+                    options=["Pila Assoluta ($)", "Quota Percentuale (%)", "Entrambi i Grafici"],
+                    horizontal=True,
+                    key="qualtrim_view_mode_bus"
+                )
+                
+            if view_mode in ["Pila Assoluta ($)", "Entrambi i Grafici"]:
+                fig_stacked = qualtrim_engine.create_segment_stacked_bar_chart(company_data, "business_segments")
+                st.plotly_chart(fig_stacked, use_container_width=True)
+                
+            if view_mode in ["Quota Percentuale (%)", "Entrambi i Grafici"]:
+                fig_pct = qualtrim_engine.create_segment_percentage_chart(company_data, "business_segments")
+                st.plotly_chart(fig_pct, use_container_width=True)
+                
+            df_bus = pd.DataFrame(company_data["business_segments"], index=[str(p) for p in periods])
+            df_bus["TOTALE"] = df_bus.sum(axis=1)
+            st.markdown(qualtrim_engine.render_qualtrim_data_table(df_bus, f"Dati Storici Segmenti Aziendali ({company_data['name']})"), unsafe_allow_html=True)
+            
+        with tab_geo:
+            st.subheader("🌍 Ricavi per Area Geografica")
+            if company_data.get("geographic_segments"):
+                col_g1, col_g2 = st.columns([3, 2])
+                with col_g1:
+                    fig_geo_stack = qualtrim_engine.create_segment_stacked_bar_chart(company_data, "geographic_segments")
+                    st.plotly_chart(fig_geo_stack, use_container_width=True)
+                with col_g2:
+                    fig_geo_donut = qualtrim_engine.create_geographic_donut_chart(company_data)
+                    st.plotly_chart(fig_geo_donut, use_container_width=True)
+                    
+                df_geo = pd.DataFrame(company_data["geographic_segments"], index=[str(p) for p in periods])
+                df_geo["TOTALE"] = df_geo.sum(axis=1)
+                st.markdown(qualtrim_engine.render_qualtrim_data_table(df_geo, f"Dati Storici Ripartizione Geografica ({company_data['name']})"), unsafe_allow_html=True)
+            else:
+                st.info("Dati geografici non disponibili per questo ticker.")
+                
+        with tab_sankey:
+            st.subheader(f"💸 Flusso Economico Qualtrim Sankey ({latest_p}) — {company_data['name']}")
+            fig_sankey = qualtrim_engine.create_sankey_diagram(company_data)
+            if fig_sankey:
+                st.plotly_chart(fig_sankey, use_container_width=True)
+            else:
+                st.info("Diagramma Sankey non disponibile per questo ticker.")
+                
+            with st.expander("🔍 Dettaglio Voci del Diagramma Sankey"):
+                s_data = company_data.get("sankey_latest", {})
+                for k, v in s_data.items():
+                    st.write(f"• **{k}**: ${v:.2f} {company_data['unit']}")
+                    
+        with tab_fin:
+            st.subheader(f"📈 Trend Storici Conto Economico & Cash Flow ({ticker_to_use} - {period_choice})")
+            fig_fin_trends = qualtrim_engine.create_multiyear_financial_trends_chart(ticker_to_use, period=period_choice)
+            if fig_fin_trends:
+                st.plotly_chart(fig_fin_trends, use_container_width=True)
+            else:
+                st.info("Trend finanziari non disponibili.")
+                
+        st.divider()
+        csv_data = pd.DataFrame(company_data["business_segments"]).to_csv(index=True)
+        st.download_button(
+            label=f"📥 Scarica CSV Dati Segmenti ({ticker_to_use})",
+            data=csv_data,
+            file_name=f"{ticker_to_use}_qualtrim_segments_{period_choice}.csv",
+            mime="text/csv"
+        )
