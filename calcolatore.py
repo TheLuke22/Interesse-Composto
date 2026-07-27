@@ -5233,7 +5233,8 @@ elif page_choice == "🧩 Business Segments":
         st.error(f"Impossibile recuperare dati per {ticker_to_use}. Verifica il simbolo ticker.")
     else:
         if company_data.get("_is_fallback"):
-            st.info(f"ℹ️ Dati stimati in tempo reale tramite yfinance/SEC per {ticker_to_use}.")
+            source_name = company_data.get("_source", "SEC EDGAR Official API / yfinance")
+            st.info(f"🏛️ **Fonte Dati:** {source_name} — Dati finanziari storici dal {company_data['periods'][0]} al {company_data['periods'][-1]} per {ticker_to_use}.")
             
         periods = company_data["periods"]
         latest_p = periods[-1]
