@@ -1816,8 +1816,7 @@ page_choice = st.sidebar.radio("Tool:", [
     "📰 Financial News",
     "👑 Super Investors",
     "🌍 Macro & Market",
-    "🔍 Stock Screener",
-    "🤖 Hedge Fund OS AI"
+    "🔍 Stock Screener"
 ], label_visibility="collapsed", key="navigation_page")
 
 
@@ -5096,84 +5095,6 @@ elif page_choice == "👑 Super Investors":
                 "Insider Trades (CEO, CFO, Board Members) verranno implementati leggendo i form SEC 4.")
         with t4:
             st.info("Le Stock Picks istituzionali verranno generate filtrando l'universo del S&P 500 in base alle logiche dell'Hedge Fund selezionato.")
-
-# ==========================================
-# PAGE 8: HEDGE FUND OS AI
-# ==========================================
-elif page_choice == "🤖 Hedge Fund OS AI":
-    st.title("🤖 Hedge Fund OS AI")
-    st.write("Canale di Controllo Multi-Agente per l'analisi fondamentale e la conformità del rischio.")
-    st.divider()
-
-    from agents_core import equity_portfolio_manager_agent, chief_risk_agent
-
-    # Configurazione Chiave API (opzionale con fallback)
-    with st.expander("🔑 Configurazione API Key (Opzionale)"):
-        api_key_input = st.text_input("Inserisci la tua Gemini API Key per analisi live (lascia vuoto per usare il motore di simulazione):", 
-                                      value=st.session_state.get("gemini_api_key", ""), 
-                                      type="password")
-        if api_key_input != st.session_state.get("gemini_api_key", ""):
-            st.session_state["gemini_api_key"] = api_key_input
-            st.toast("Gemini API Key salvata per la sessione!", icon="🔑")
-
-    # Inizializziamo il ticker di default usando quello attivo nel portafoglio/tracker se presente
-    default_ticker = st.session_state.get('active_ticker', 'NVDA')
-
-    col_input1, col_input2 = st.columns([1, 2])
-    with col_input1:
-        ticker_per_agenti = st.text_input("Conferma Ticker per l'analisi AI:", value=default_ticker)
-    with col_input2:
-        nota_analisi = st.text_area("Istruzioni operative per l'Investment Office:", 
-                                    value="Analisi dei margini storici e del Margin of Safety reale.")
-
-    if st.button("⚡ Esegui Audit AI", key="run_ai_audit", type="primary"):
-        with st.spinner(f"Elaborazione report in corso da parte dell'Investment Office per {ticker_per_agenti}..."):
-            try:
-                # 1. Recuperiamo i dati reali sfruttando yfinance
-                stock = yf.Ticker(ticker_per_agenti)
-                info = stock.info
-                
-                prezzo_live = info.get("currentPrice") or info.get("regularMarketPrice") or 0.0
-                valuta = info.get("currency", "USD")
-                market_cap = info.get("marketCap") or 0
-                ebitda = info.get("ebitda") or 0
-                
-                # 2. Compiliamo il payload per i cervelli artificiali
-                contesto_arricchito = f"""
-                TARGET: {ticker_per_agenti}
-                Prezzo Spot: {prezzo_live} {valuta}
-                Market Cap: {market_cap:,} {valuta}
-                EBITDA: {ebitda:,} {valuta}
-                --- NOTE ---
-                {nota_analisi}
-                """
-                
-                # 3. Interrogazione in cascata degli agenti
-                key_to_use = st.session_state.get("gemini_api_key") or None
-                pm_output = equity_portfolio_manager_agent(ticker_per_agenti, contesto_arricchito, api_key=key_to_use)
-                risk_output = chief_risk_agent(pm_output, api_key=key_to_use)
-                
-                # 4. Parsing del Rating e Visualizzazione Grafica dei Banner
-                risk_rating = "YELLOW"
-                if "GREEN" in risk_output.upper(): risk_rating = "GREEN"
-                elif "RED" in risk_output.upper(): risk_rating = "RED"
-                elif "BLACK" in risk_output.upper(): risk_rating = "BLACK"
-                
-                if risk_rating in ["GREEN", "YELLOW"]:
-                    st.success(f"🟢 **RISK RATING: {risk_rating}** — Condizioni validate per lo staging.")
-                else:
-                    st.error(f"🔴 **VETO RILEVATO: {risk_rating}** — Operazione bloccata dal Risk Management.")
-                
-                # Visualizzazione dei report espandibili
-                c_pm, c_risk = st.columns(2)
-                with c_pm:
-                    with st.expander("📈 Visualizza Report Finanziario (Equity PM)", expanded=True):
-                        st.markdown(pm_output)
-                with c_risk:
-                    with st.expander("🛡️ Visualizza Risk Audit (Chief Risk)", expanded=True):
-                        st.markdown(risk_output)
-            except Exception as e:
-                st.error(f"Si è verificato un errore durante l'audit: {e}")
 
 # ==========================================
 # PAGE: BUSINESS SEGMENTS & FINANCIAL FLOW
