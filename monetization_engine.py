@@ -4,6 +4,9 @@ import logging
 
 logger = logging.getLogger("MonetizationEngine")
 
+# Password Segreta Admin (modificabile o tramite variabile d'ambiente)
+ADMIN_SECRET_KEY = os.environ.get("ADMIN_SECRET_KEY", "admin2026")
+
 # Configura le tue chiavi Stripe (o imposta variabili d'ambiente)
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "pk_test_sample_key")
 STRIPE_PAYMENT_LINK_MONTHLY = os.environ.get("STRIPE_LINK_MONTHLY", "https://buy.stripe.com/test_monthly_pro")
@@ -17,11 +20,58 @@ BROKER_AFFILIATE_LINKS = {
     "Freedom24": "https://freedom24.com/?utm_source=business_segments"
 }
 
+def check_is_admin() -> bool:
+    """
+    Verifica se l'utente corrente è l'Admin/Creatore.
+    Riconosce l'admin tramite:
+    1. Parametro URL Segreto: ?admin=1 oppure ?key=admin2026
+    2. Session state 'is_admin_authenticated' = True
+    """
+    if "is_admin_authenticated" not in st.session_state:
+        st.session_state["is_admin_authenticated"] = False
+        
+    # Check URL Parameters (es. il tuo-sito.streamlit.app/?admin=1)
+    try:
+        qp = st.query_params
+        if qp.get("admin") == "1" or qp.get("key") == ADMIN_SECRET_KEY:
+            st.session_state["is_admin_authenticated"] = True
+    except Exception:
+        pass
+        
+    return st.session_state["is_admin_authenticated"]
+
+
 def is_user_pro() -> bool:
-    """Verifica se l'utente corrente ha attivo il piano PRO."""
+    """Verifica se l'utente corrente ha attivo il piano PRO (oppure è Admin)."""
+    if check_is_admin():
+        return True
     if "is_pro_user" not in st.session_state:
         st.session_state["is_pro_user"] = False
     return st.session_state["is_pro_user"]
+
+
+def render_admin_login_sidebar():
+    """Renderizza il box discreto di accesso Admin nella barra laterale per il creatore."""
+    is_admin = check_is_admin()
+    
+    with st.sidebar.expander("🔐 Accesso Creatore / Admin", expanded=False):
+        if is_admin:
+            st.success("👑 Autenticato come Admin / Creatore")
+            st.caption("Hai accesso illimitato Pro a tutti i ticker e strumenti.")
+            if st.button("Esci da Admin Mode", key="logout_admin_btn"):
+                st.session_state["is_admin_authenticated"] = False
+                st.session_state["is_pro_user"] = False
+                st.rerun()
+        else:
+            admin_input = st.text_input("Master Key Passcode:", type="password", key="admin_master_key_input", placeholder="Inserisci chiave segreta...")
+            if st.button("Accedi come Admin", key="login_admin_btn"):
+                if admin_input == ADMIN_SECRET_KEY:
+                    st.session_state["is_admin_authenticated"] = True
+                    st.session_state["is_pro_user"] = True
+                    st.success("Accesso Admin Verificato!")
+                    st.rerun()
+                else:
+                    st.error("Chiave errata.")
 
 
 def render_paywall_modal(feature_name="Feature Pro"):
