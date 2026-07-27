@@ -21,8 +21,8 @@ import random
 import os
 import logging
 import time
-from functools import wraps
 import qualtrim_engine
+import monetization_engine
 
 # --- SYSTEM LOGGING CONFIGURATION ---
 logging.basicConfig(
@@ -5178,23 +5178,40 @@ elif page_choice == "🤖 Hedge Fund OS AI":
 # PAGE: BUSINESS SEGMENTS & FINANCIAL FLOW
 # ==========================================
 elif page_choice == "🧩 Business Segments":
-    st.markdown("""
+    # 0. Subscription Status Header & Demo Toggle
+    is_pro = monetization_engine.is_user_pro()
+    
+    st.markdown(f"""
     <div style="background: linear-gradient(135deg, rgba(15,23,42,0.95) 0%, rgba(30,58,138,0.4) 100%); border: 1px solid rgba(0, 242, 254, 0.25); border-radius: 20px; padding: 24px; margin-bottom: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
             <div>
                 <span class="ticker-badge" style="font-size: 13px; padding: 5px 12px;">Business Segments Pro</span>
                 <h2 style="color: #FFFFFF; font-family: 'Outfit', sans-serif; font-size: 28px; margin: 8px 0 4px 0; font-weight: 800;">🧩 Business Segment Breakdown & Financial Flow</h2>
-                <p style="color: #94A3B8; font-size: 14px; margin: 0;">Analisi visiva multi-anno per segmento aziendale, area geografica e diagramma di flusso Sankey (100% Gratis).</p>
+                <p style="color: #94A3B8; font-size: 14px; margin: 0;">Analisi visiva multi-anno per segmento aziendale, area geografica e diagramma di flusso Sankey.</p>
+            </div>
+            <div style="text-align: right;">
+                {'<span style="background: linear-gradient(135deg, #00FF7F 0%, #10B981 100%); color: #0F172A; font-weight: 800; font-size: 12px; padding: 6px 14px; border-radius: 12px;">👑 Statuto Account: PRO ATTIVO</span>' if is_pro else '<span style="background: rgba(255,255,255,0.1); color: #CBD5E1; font-weight: 700; font-size: 12px; padding: 6px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);">⚪ Statuto Account: PIANO FREE</span>'}
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
+    # Demo Switcher Bar for Admin Testing
+    with st.expander("⚙️ Pannello di Controllo Monetizzazione (Demo Switcher Free / Pro)"):
+        col_demo1, col_demo2 = st.columns([3, 1])
+        with col_demo1:
+            st.caption("Usa questo selettore per testare l'esperienza visiva tra Utente Free (con Paywall Stripe) e Utente Pro Abbonato.")
+        with col_demo2:
+            new_pro_state = st.toggle("Attiva Account Pro", value=is_pro, key="toggle_pro_status_demo")
+            if new_pro_state != is_pro:
+                st.session_state["is_pro_user"] = new_pro_state
+                st.rerun()
+    
     # 1. Unified State-Based Ticker Selection System
     if "active_bus_ticker" not in st.session_state:
         st.session_state["active_bus_ticker"] = "AAPL"
         
-    st.markdown("<p style='color: #8A929A; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 6px;'>⚡ Quick Select Mega-Cap Tickers:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #8A929A; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 6px;'>⚡ Quick Select Mega-Cap Tickers (Inclusi nel Piano Free):</p>", unsafe_allow_html=True)
     p_cols = st.columns(10)
     presets = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "NFLX", "KO", "DIS"]
     for idx, p_sym in enumerate(presets):
@@ -5209,7 +5226,7 @@ elif page_choice == "🧩 Business Segments":
     
     with c_sel1:
         user_typed = st.text_input(
-            "Oppure cerca qualsiasi Ticker Personalizzato (es. WMT, COST, LLY, CAT, AMD, INTC...):",
+            "🔒 Ricerca qualsiasi Ticker Personalizzato (Riservato agli utenti Pro, es. WMT, COST, LLY, CAT...):",
             key="custom_ticker_search_field",
             placeholder="Digita ticker (es. COST) e premi Invio..."
         ).upper().strip()
@@ -5228,9 +5245,18 @@ elif page_choice == "🧩 Business Segments":
         
     ticker_to_use = st.session_state["active_bus_ticker"]
     
-    # Fetch Segment & Financial Data
-    with st.spinner(f"Caricamento dati di segmento ({period_choice}) per {ticker_to_use}..."):
-        company_data = qualtrim_engine.get_company_segment_data(ticker_to_use, period=period_choice)
+    # 2. Freemium Gate Enforcement Check
+    is_custom_ticker = (ticker_to_use not in presets)
+    is_quarterly = (period_choice.startswith("Quarter"))
+    
+    if not is_pro and (is_custom_ticker or is_quarterly):
+        # Trigger Stripe Paywall Modal
+        reason = "Ricerca Ticker Personalizzati (SEC EDGAR)" if is_custom_ticker else "Dati Trimestrali Dettagliati (Q1-Q4)"
+        monetization_engine.render_paywall_modal(feature_name=reason)
+    else:
+        # Fetch Segment & Financial Data
+        with st.spinner(f"Caricamento dati di segmento ({period_choice}) per {ticker_to_use}..."):
+            company_data = qualtrim_engine.get_company_segment_data(ticker_to_use, period=period_choice)
         
     if not company_data:
         st.error(f"Impossibile recuperare dati per {ticker_to_use}. Verifica il simbolo ticker.")
@@ -5373,11 +5399,14 @@ elif page_choice == "🧩 Business Segments":
             else:
                 st.info("Trend finanziari non disponibili.")
                 
+        # 3. High-CPA Broker Affiliate Links Partnership Card
+        monetization_engine.render_broker_affiliate_card(ticker_to_use)
+        
         st.divider()
         csv_data = pd.DataFrame(company_data["business_segments"]).to_csv(index=True)
         st.download_button(
-            label=f"📥 Scarica CSV Dati Segmenti ({ticker_to_use})",
+            label=f"📥 Scarica CSV Dati Business Segments ({ticker_to_use})",
             data=csv_data,
-            file_name=f"{ticker_to_use}_qualtrim_segments_{period_choice}.csv",
+            file_name=f"{ticker_to_use}_business_segments_{period_choice}.csv",
             mime="text/csv"
         )
