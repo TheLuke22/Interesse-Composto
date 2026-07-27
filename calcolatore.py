@@ -5250,6 +5250,7 @@ elif page_choice == "🧩 Business Segments":
     is_custom_ticker = (ticker_to_use not in presets)
     is_quarterly = (period_choice.startswith("Quarter"))
     
+    company_data = None
     if not is_pro and (is_custom_ticker or is_quarterly):
         # Trigger Stripe Paywall Modal
         reason = "Ricerca Ticker Personalizzati (SEC EDGAR)" if is_custom_ticker else "Dati Trimestrali Dettagliati (Q1-Q4)"
@@ -5258,10 +5259,11 @@ elif page_choice == "🧩 Business Segments":
         # Fetch Segment & Financial Data
         with st.spinner(f"Caricamento dati di segmento ({period_choice}) per {ticker_to_use}..."):
             company_data = qualtrim_engine.get_company_segment_data(ticker_to_use, period=period_choice)
-        
-    if not company_data:
-        st.error(f"Impossibile recuperare dati per {ticker_to_use}. Verifica il simbolo ticker.")
-    else:
+            
+        if not company_data:
+            st.error(f"Impossibile recuperare dati per {ticker_to_use}. Verifica il simbolo ticker.")
+            
+    if company_data is not None:
         if company_data.get("_is_fallback"):
             source_name = company_data.get("_source", "SEC EDGAR Official API / yfinance")
             st.info(f"🏛️ **Fonte Dati:** {source_name} — Dati finanziari storici dal {company_data['periods'][0]} al {company_data['periods'][-1]} per {ticker_to_use}.")
