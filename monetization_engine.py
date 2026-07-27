@@ -37,18 +37,19 @@ def render_paywall_modal(feature_name="Feature Pro"):
         <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; margin-bottom: 20px;">
             <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 16px 24px; min-width: 200px;">
                 <div style="color: #8A929A; font-size: 12px; font-weight: 700; text-transform: uppercase;">Piano Mensile</div>
-                <div style="color: #00F2FE; font-size: 26px; font-weight: 800; margin: 4px 0;">€19 <span style="font-size: 14px; color: #94A3B8;">/mese</span></div>
+                <div style="color: #00F2FE; font-size: 28px; font-weight: 800; margin: 4px 0;">€4,99 <span style="font-size: 14px; color: #94A3B8;">/mese</span></div>
                 <a href="{STRIPE_PAYMENT_LINK_MONTHLY}" target="_blank" style="text-decoration: none;">
                     <div style="background: linear-gradient(90deg, #00F2FE 0%, #4FACFE 100%); color: #0F172A; font-weight: 800; padding: 10px 18px; border-radius: 10px; font-size: 13px; margin-top: 8px; box-shadow: 0 0 15px rgba(0,242,254,0.4);">
-                        Abbonati Ora (Stripe)
+                        Abbonati a €4,99 (Stripe)
                     </div>
                 </a>
             </div>
             
             <div style="background: rgba(0,255,127,0.05); border: 1px solid rgba(0,255,127,0.3); border-radius: 14px; padding: 16px 24px; min-width: 200px; position: relative;">
-                <span style="position: absolute; top: -10px; right: 15px; background: #00FF7F; color: #0F172A; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 8px;">RISPARMIA 35%</span>
+                <span style="position: absolute; top: -10px; right: 15px; background: #00FF7F; color: #0F172A; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 8px;">MIGLIOR VALORE</span>
                 <div style="color: #8A929A; font-size: 12px; font-weight: 700; text-transform: uppercase;">Piano Annuale</div>
-                <div style="color: #00FF7F; font-size: 26px; font-weight: 800; margin: 4px 0;">€149 <span style="font-size: 14px; color: #94A3B8;">/anno</span></div>
+                <div style="color: #00FF7F; font-size: 28px; font-weight: 800; margin: 4px 0;">€49 <span style="font-size: 14px; color: #94A3B8;">/anno</span></div>
+                <div style="color: #94A3B8; font-size: 11px; margin-bottom: 4px;">Equivale a soli <b>€4,08 / mese</b></div>
                 <a href="{STRIPE_PAYMENT_LINK_ANNUAL}" target="_blank" style="text-decoration: none;">
                     <div style="background: linear-gradient(90deg, #00FF7F 0%, #10B981 100%); color: #0F172A; font-weight: 800; padding: 10px 18px; border-radius: 10px; font-size: 13px; margin-top: 8px; box-shadow: 0 0 15px rgba(0,255,127,0.4);">
                         Abbonati Annuale (Stripe)
