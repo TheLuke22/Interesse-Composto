@@ -5190,32 +5190,35 @@ elif page_choice == "🧩 Business Segments":
     </div>
     """, unsafe_allow_html=True)
     
-    # Top Selector Row (Company & Period Selection)
-    c_sel1, c_sel2, c_sel3 = st.columns([2, 1, 1])
+    # 1. Unified State-Based Ticker Selection System
+    if "active_bus_ticker" not in st.session_state:
+        st.session_state["active_bus_ticker"] = "AAPL"
+        
+    st.markdown("<p style='color: #8A929A; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 6px;'>⚡ Quick Select Mega-Cap Tickers:</p>", unsafe_allow_html=True)
+    p_cols = st.columns(10)
+    presets = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "NFLX", "KO", "DIS"]
+    for idx, p_sym in enumerate(presets):
+        with p_cols[idx]:
+            is_active = (st.session_state["active_bus_ticker"] == p_sym)
+            if st.button(p_sym, key=f"preset_btn_{p_sym}", use_container_width=True, type="primary" if is_active else "secondary"):
+                st.session_state["active_bus_ticker"] = p_sym
+                st.session_state["custom_ticker_search_field"] = ""
+                st.rerun()
+                
+    c_sel1, c_sel2 = st.columns([3, 1])
     
     with c_sel1:
-        preset_ticker = st.selectbox(
-            "Azienda Target (Quick Select):",
-            options=[
-                "AAPL - Apple Inc.",
-                "MSFT - Microsoft Corporation",
-                "GOOGL - Alphabet (Google)",
-                "AMZN - Amazon.com",
-                "NVDA - NVIDIA Corporation",
-                "TSLA - Tesla, Inc.",
-                "META - Meta Platforms",
-                "NFLX - Netflix",
-                "KO - The Coca-Cola Company",
-                "DIS - The Walt Disney Company"
-            ],
-            index=0
-        )
-        selected_preset = preset_ticker.split(" - ")[0]
+        user_typed = st.text_input(
+            "Oppure cerca qualsiasi Ticker Personalizzato (es. WMT, COST, LLY, CAT, AMD, INTC...):",
+            key="custom_ticker_search_field",
+            placeholder="Digita ticker (es. COST) e premi Invio..."
+        ).upper().strip()
         
+        if user_typed and user_typed != st.session_state["active_bus_ticker"]:
+            st.session_state["active_bus_ticker"] = user_typed
+            st.rerun()
+            
     with c_sel2:
-        custom_ticker = st.text_input("Oppure Ticker Personalizzato:", placeholder="Es. WMT, COST, AMD...").upper().strip()
-        
-    with c_sel3:
         period_choice = st.radio(
             "Periodo Temporale:",
             options=["Annual (FY)", "Quarterly (Q)"],
@@ -5223,7 +5226,7 @@ elif page_choice == "🧩 Business Segments":
             key="qualtrim_period_select"
         )
         
-    ticker_to_use = custom_ticker if custom_ticker else selected_preset
+    ticker_to_use = st.session_state["active_bus_ticker"]
     
     # Fetch Segment & Financial Data
     with st.spinner(f"Caricamento dati di segmento ({period_choice}) per {ticker_to_use}..."):
