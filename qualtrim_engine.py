@@ -1385,6 +1385,172 @@ def create_mini_financial_chart_grid(ticker: str, period="Annual"):
     return results
 
 
+def create_focused_financial_chart(ticker: str, metric_name: str, period="Annual", timeframe="Tutto lo Storico", quarter_filter="Tutti i Trimestri"):
+    """
+    Generates a dedicated high-resolution Plotly chart (500px) with timeframe filtering,
+    quarter-over-quarter comparison filtering, trendlines, and detailed data frame.
+    """
+    metrics = _get_extended_financials(ticker, period)
+    labels = list(metrics["labels"])
+    
+    # 1. Filter by Quarter if specified
+    if period.startswith("Quarter") and quarter_filter != "Tutti i Trimestri":
+        q_code = quarter_filter.split(" ")[-1] if " " in quarter_filter else quarter_filter
+        indices = [i for i, lbl in enumerate(labels) if lbl.startswith(q_code)]
+    else:
+        indices = list(range(len(labels)))
+        
+    # 2. Filter by Timeframe
+    if "10" in timeframe:
+        indices = indices[-10:]
+    elif "5" in timeframe:
+        indices = indices[-5:]
+    elif "3" in timeframe:
+        indices = indices[-3:]
+        
+    if not indices:
+        indices = list(range(len(labels)))
+        
+    filt_labels = [labels[i] for i in indices]
+    
+    metric_map = {
+        "Revenue": ("revenue", "Ricavi Totali (Revenue)", "$B", "#3B82F6", "$.2f"),
+        "EPS": ("eps", "Earnings Per Share (EPS)", "$", "#F59E0B", "$.2f"),
+        "Free Cash Flow": ("fcf", "Free Cash Flow (FCF)", "$B", "#10B981", "$.2f"),
+        "Margins": ("margins", "Margini di Redditività (%)", "%", "#3B82F6", ".1f"),
+        "Gross Profit": ("gross_profit", "Utile Lordo (Gross Profit)", "$B", "#60A5FA", "$.2f"),
+        "EBIT": ("op_income", "EBIT (Operating Income)", "$B", "#EF4444", "$.2f"),
+        "Net Income": ("net_income", "Utile Netto (Net Income)", "$B", "#8B5CF6", "$.2f"),
+        "CapEx": ("capex", "Spese per Capitale (CapEx)", "$B", "#F97316", "$.2f"),
+        "Debt vs Equity": ("debt_equity", "Debito Totale vs Patrimonio Netto", "$B", "#EC4899", "$.2f")
+    }
+    
+    cfg = metric_map.get(metric_name, ("revenue", metric_name, "$B", "#3B82F6", "$.2f"))
+    key_name, title_lbl, unit_str, color_hex, fmt_str = cfg
+    
+    fig = go.Figure()
+    df_rows = []
+    
+    if key_name == "margins":
+        gm = metrics["gross_margin"][indices]
+        om = metrics["op_margin"][indices]
+        nm = metrics["net_margin"][indices]
+        
+        fig.add_trace(go.Scatter(
+            x=filt_labels, y=gm, name="Gross Margin %",
+            mode="lines+markers", line=dict(color="#3B82F6", width=3, shape="spline"),
+            marker=dict(size=7), hovertemplate="Gross Margin: <b>%{y:.1f}%</b><extra></extra>"
+        ))
+        fig.add_trace(go.Scatter(
+            x=filt_labels, y=om, name="Operating Margin %",
+            mode="lines+markers", line=dict(color="#F59E0B", width=3, shape="spline"),
+            marker=dict(size=7), hovertemplate="Operating Margin: <b>%{y:.1f}%</b><extra></extra>"
+        ))
+        fig.add_trace(go.Scatter(
+            x=filt_labels, y=nm, name="Net Margin %",
+            mode="lines+markers", line=dict(color="#10B981", width=3, dash="dot", shape="spline"),
+            marker=dict(size=7), hovertemplate="Net Margin: <b>%{y:.1f}%</b><extra></extra>"
+        ))
+        
+        for idx_pos, i in enumerate(indices):
+            df_rows.append({
+                "Periodo": labels[i],
+                "Gross Margin (%)": f"{gm[idx_pos]:.1f}%",
+                "Operating Margin (%)": f"{om[idx_pos]:.1f}%",
+                "Net Margin (%)": f"{nm[idx_pos]:.1f}%"
+            })
+            
+    elif key_name == "debt_equity":
+        d_vals = metrics["debt"][indices]
+        e_vals = metrics["equity"][indices]
+        
+        fig.add_trace(go.Bar(
+            x=filt_labels, y=d_vals, name="Debito Totale ($B)",
+            marker_color="#EC4899", marker=dict(line=dict(color="#0F172A", width=0.5)),
+            hovertemplate="Debito: <b>$%{y:.2f}B</b><extra></extra>"
+        ))
+        fig.add_trace(go.Scatter(
+            x=filt_labels, y=e_vals, name="Patrimonio Netto ($B)",
+            mode="lines+markers", line=dict(color="#14B8A6", width=3, shape="spline"),
+            marker=dict(size=8), hovertemplate="Equity: <b>$%{y:.2f}B</b><extra></extra>"
+        ))
+        
+        for idx_pos, i in enumerate(indices):
+            d_val = d_vals[idx_pos]
+            e_val = e_vals[idx_pos]
+            de_ratio = round(d_val / e_val, 2) if e_val > 0 else "N/A"
+            df_rows.append({
+                "Periodo": labels[i],
+                "Debito ($B)": f"${d_val:.2f}B",
+                "Patrimonio Netto ($B)": f"${e_val:.2f}B",
+                "Rapporto D/E": f"{de_ratio}x" if isinstance(de_ratio, (int, float)) else "N/A"
+            })
+            
+    else:
+        vals = metrics[key_name][indices]
+        colors = [color_hex if v >= 0 else "#EF4444" for v in vals]
+        
+        fig.add_trace(go.Bar(
+            x=filt_labels, y=vals, name=title_lbl,
+            marker_color=colors, marker=dict(line=dict(color="#0F172A", width=0.5)),
+            hovertemplate=f"<b>{title_lbl}</b><br>%{{x}}: <b>%{{y:{fmt_str}}}{unit_str}</b><extra></extra>"
+        ))
+        
+        # Add smooth trendline
+        if len(vals) > 2:
+            fig.add_trace(go.Scatter(
+                x=filt_labels, y=vals, name="Trend Spline",
+                mode="lines", line=dict(color="rgba(255,255,255,0.4)", width=2, dash="dash", shape="spline"),
+                hoverinfo="skip"
+            ))
+            
+        for idx_pos, i in enumerate(indices):
+            v = vals[idx_pos]
+            yoy = None
+            if idx_pos > 0 and vals[idx_pos-1] != 0:
+                yoy = ((v - vals[idx_pos-1]) / abs(vals[idx_pos-1])) * 100
+            yoy_str = f"{'+' if yoy >= 0 else ''}{yoy:.1f}%" if yoy is not None else "—"
+            
+            fmt_v = f"${v:.2f}" if unit_str == "$" else f"${v:.2f}B"
+            df_rows.append({
+                "Periodo": labels[i],
+                f"Valore ({unit_str})": fmt_v,
+                "Variazione YoY (%)": yoy_str
+            })
+            
+    fig.update_layout(
+        title=dict(
+            text=f"<b>{title_lbl} — {ticker.upper()} ({period})</b>",
+            font=dict(size=18, color="#FFFFFF", family="Outfit, Inter, sans-serif")
+        ),
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(15,23,42,0.4)",
+        font=dict(family="Inter, sans-serif", color="#E2E8F0", size=12),
+        margin=dict(l=40, r=40, t=70, b=40),
+        height=500,
+        showlegend=(key_name in ["margins", "debt_equity"]),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
+            bgcolor="rgba(15,23,42,0.8)", bordercolor="rgba(255,255,255,0.1)"
+        ),
+        xaxis=dict(
+            gridcolor="rgba(255,255,255,0.04)",
+            tickfont=dict(color="#CBD5E1", size=11),
+            type="category"
+        ),
+        yaxis=dict(
+            gridcolor="rgba(255,255,255,0.06)",
+            tickfont=dict(color="#CBD5E1", size=11),
+            tickformat=fmt_str if key_name != "margins" else ".0f",
+            ticksuffix="%" if key_name == "margins" else ""
+        )
+    )
+    
+    df_table = pd.DataFrame(df_rows)
+    return fig, df_table
+
+
 # ==============================================================================
 # PREMIUM HTML/CSS INSTITUTIONAL DATA TABLE RENDERER
 # ==============================================================================

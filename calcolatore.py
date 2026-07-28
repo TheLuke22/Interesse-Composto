@@ -5359,151 +5359,230 @@ elif page_choice == "🧩 Business Segments":
         ])
         
         with tab_overview:
-            st.markdown(f"""
-            <div style="margin-bottom: 16px;">
-                <h3 style="color: #FFFFFF; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 800; margin: 0 0 4px 0;">
-                    📊 Panoramica Finanziaria Completa — {company_data['name']}
-                </h3>
-                <p style="color: #94A3B8; font-size: 13px; margin: 0;">
-                    Griglia interattiva di 9 metriche chiave. Clicca su <b>"🔍 Dettaglio"</b> sotto ogni grafico per esplorare dati storici, variazioni YoY% e insights.
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
+            metric_names_list = [
+                "Revenue", "EPS", "Free Cash Flow", "Margins", 
+                "Gross Profit", "EBIT", "Net Income", "CapEx", "Debt vs Equity"
+            ]
             
-            with st.spinner(f"Caricamento dashboard finanziaria completa per {ticker_to_use}..."):
-                chart_grid = qualtrim_engine.create_mini_financial_chart_grid(ticker_to_use, period=period_choice)
-            
-            # Render 3x3 grid
-            for row_start in range(0, 9, 3):
-                row_charts = chart_grid[row_start:row_start + 3]
-                grid_cols = st.columns(3)
+            if "focused_metric_idx" not in st.session_state:
+                st.session_state["focused_metric_idx"] = None
                 
-                for col_idx, chart_data in enumerate(row_charts):
-                    with grid_cols[col_idx]:
-                        chart_name = chart_data["name"]
-                        chart_emoji = chart_data["emoji"]
-                        chart_fig = chart_data["fig"]
-                        chart_detail = chart_data["detail"]
-                        chart_color = chart_data["color"]
-                        
-                        if chart_fig:
-                            st.plotly_chart(chart_fig, use_container_width=True, key=f"minichart_{row_start}_{col_idx}")
-                        else:
-                            st.markdown(f"""
-                            <div style="height: 280px; display: flex; align-items: center; justify-content: center; 
-                                        background: rgba(15,23,42,0.4); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
-                                <p style="color: #64748B; font-size: 13px;">{chart_emoji} {chart_name} — Dati non disponibili</p>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        
-                        # Expandable detail panel
-                        if chart_detail and chart_detail.get("rows"):
-                            with st.expander(f"🔍 Dettaglio {chart_emoji} {chart_name}", expanded=False):
-                                detail_rows = chart_detail["rows"]
-                                latest_val = chart_detail.get("latest", 0)
-                                max_val = chart_detail.get("max_val", 0)
-                                cagr_val = chart_detail.get("cagr")
-                                unit_label = chart_detail.get("unit", "$B")
-                                
-                                # KPI strip
-                                kpi_html = f"""
-                                <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
-                                    <div style="flex: 1; min-width: 80px; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 10px; text-align: center;">
-                                        <div style="color: #8A929A; font-size: 9px; text-transform: uppercase; font-weight: 700;">Ultimo</div>
-                                        <div style="color: {chart_color}; font-size: 14px; font-weight: 800;">{detail_rows[-1]['valore_fmt']}</div>
-                                    </div>
-                                    <div style="flex: 1; min-width: 80px; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 10px; text-align: center;">
-                                        <div style="color: #8A929A; font-size: 9px; text-transform: uppercase; font-weight: 700;">Max Storico</div>
-                                        <div style="color: #00FF7F; font-size: 14px; font-weight: 800;">{detail_rows[0]['valore_fmt'] if max_val == 0 else [r for r in detail_rows if r['valore'] == max_val][0]['valore_fmt'] if any(r['valore'] == max_val for r in detail_rows) else f'{max_val:.2f}'}</div>
-                                    </div>
-                                """
-                                if cagr_val is not None:
-                                    cagr_color = "#00FF7F" if cagr_val >= 0 else "#EF4444"
-                                    cagr_sign = "+" if cagr_val >= 0 else ""
-                                    kpi_html += f"""
-                                    <div style="flex: 1; min-width: 80px; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 10px; text-align: center;">
-                                        <div style="color: #8A929A; font-size: 9px; text-transform: uppercase; font-weight: 700;">CAGR</div>
-                                        <div style="color: {cagr_color}; font-size: 14px; font-weight: 800;">{cagr_sign}{cagr_val:.1f}%</div>
-                                    </div>
-                                    """
-                                kpi_html += "</div>"
-                                st.markdown(kpi_html, unsafe_allow_html=True)
-                                
-                                # Data table
-                                table_rows = ""
-                                for r_idx, row_d in enumerate(detail_rows):
-                                    bg = "rgba(255,255,255,0.02)" if r_idx % 2 == 0 else "rgba(15,23,42,0.4)"
-                                    yoy_cell = ""
-                                    if row_d["yoy_pct"] is not None:
-                                        yoy_c = "#00FF7F" if row_d["yoy_pct"] >= 0 else "#EF4444"
-                                        yoy_sign = "+" if row_d["yoy_pct"] >= 0 else ""
-                                        yoy_cell = f"<td style='text-align:right;padding:6px 8px;color:{yoy_c};font-weight:700;font-size:11px;'>{yoy_sign}{row_d['yoy_pct']:.1f}%</td>"
-                                    else:
-                                        yoy_cell = "<td style='text-align:right;padding:6px 8px;color:#64748B;font-size:11px;'>—</td>"
-                                    
-                                    table_rows += f"""
-                                    <tr style="background:{bg};">
-                                        <td style="padding:6px 8px;color:#00F2FE;font-weight:700;font-size:11px;">{row_d['periodo']}</td>
-                                        <td style="text-align:right;padding:6px 8px;color:#FFFFFF;font-size:11px;">{row_d['valore_fmt']}</td>
-                                        {yoy_cell}
-                                    </tr>"""
-                                
+            cur_focused = st.session_state["focused_metric_idx"]
+            
+            if cur_focused is None:
+                # ==============================================================
+                # MODE A: 3x3 GRID DASHBOARD VIEW
+                # ==============================================================
+                st.markdown(f"""
+                <div style="margin-bottom: 16px;">
+                    <h3 style="color: #FFFFFF; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 800; margin: 0 0 4px 0;">
+                        📊 Panoramica Finanziaria Completa — {company_data['name']}
+                    </h3>
+                    <p style="color: #94A3B8; font-size: 13px; margin: 0;">
+                        Griglia interattiva di 9 metriche chiave. Clicca su <b>"🔍 Analisi Dettagliata ↗️"</b> sotto ogni grafico per aprire la schermata a schermo intero con filtri di timeframe e confronto trimestri.
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                with st.spinner(f"Caricamento dashboard finanziaria completa per {ticker_to_use}..."):
+                    chart_grid = qualtrim_engine.create_mini_financial_chart_grid(ticker_to_use, period=period_choice)
+                
+                # Render 3x3 grid
+                for row_start in range(0, 9, 3):
+                    row_charts = chart_grid[row_start:row_start + 3]
+                    grid_cols = st.columns(3)
+                    
+                    for col_idx, chart_data in enumerate(row_charts):
+                        global_idx = row_start + col_idx
+                        with grid_cols[col_idx]:
+                            chart_name = chart_data["name"]
+                            chart_emoji = chart_data["emoji"]
+                            chart_fig = chart_data["fig"]
+                            chart_detail = chart_data["detail"]
+                            chart_color = chart_data["color"]
+                            
+                            if chart_fig:
+                                st.plotly_chart(chart_fig, use_container_width=True, key=f"minichart_{row_start}_{col_idx}")
+                            else:
                                 st.markdown(f"""
-                                <div style="border:1px solid rgba(255,255,255,0.06);border-radius:10px;overflow:hidden;margin-top:4px;">
-                                    <table style="width:100%;border-collapse:collapse;font-family:'Inter',sans-serif;">
-                                        <thead>
-                                            <tr style="background:rgba(15,23,42,0.9);">
-                                                <th style="text-align:left;padding:8px;color:#8A929A;font-size:10px;text-transform:uppercase;">Periodo</th>
-                                                <th style="text-align:right;padding:8px;color:#8A929A;font-size:10px;text-transform:uppercase;">Valore</th>
-                                                <th style="text-align:right;padding:8px;color:#8A929A;font-size:10px;text-transform:uppercase;">YoY %</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>{table_rows}</tbody>
-                                    </table>
+                                <div style="height: 280px; display: flex; align-items: center; justify-content: center; 
+                                            background: rgba(15,23,42,0.4); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
+                                    <p style="color: #64748B; font-size: 13px;">{chart_emoji} {chart_name} — Dati non disponibili</p>
                                 </div>
                                 """, unsafe_allow_html=True)
-                                
-                                # Extra margins detail for Margins chart
-                                if chart_name == "Margins" and "gross_margin" in chart_detail:
-                                    st.markdown("""
-                                    <div style="margin-top: 8px; padding: 8px 10px; background: rgba(15,23,42,0.5); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
-                                        <span style="color: #8A929A; font-size: 10px; font-weight: 700; text-transform: uppercase;">Dettaglio Margini Ultimo Periodo</span>
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                            
+                            # Clickable Deep Dive Button
+                            if st.button(f"🔍 Analisi Dettagliata {chart_emoji} {chart_name} ↗️", key=f"btn_focus_{global_idx}", use_container_width=True, type="primary"):
+                                st.session_state["focused_metric_idx"] = global_idx
+                                st.rerun()
+                            
+                            # Expandable detail panel
+                            if chart_detail and chart_detail.get("rows"):
+                                with st.expander(f"📋 Dettaglio Rapido {chart_emoji} {chart_name}", expanded=False):
+                                    detail_rows = chart_detail["rows"]
+                                    latest_val = chart_detail.get("latest", 0)
+                                    max_val = chart_detail.get("max_val", 0)
+                                    cagr_val = chart_detail.get("cagr")
                                     
-                                    gm_last = chart_detail["gross_margin"][-1] if chart_detail["gross_margin"] else 0
-                                    om_last = chart_detail["op_margin"][-1] if chart_detail["op_margin"] else 0
-                                    nm_last = chart_detail["net_margin"][-1] if chart_detail["net_margin"] else 0
+                                    # KPI strip
+                                    kpi_html = f"""
+                                    <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+                                        <div style="flex: 1; min-width: 80px; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 10px; text-align: center;">
+                                            <div style="color: #8A929A; font-size: 9px; text-transform: uppercase; font-weight: 700;">Ultimo</div>
+                                            <div style="color: {chart_color}; font-size: 14px; font-weight: 800;">{detail_rows[-1]['valore_fmt']}</div>
+                                        </div>
+                                        <div style="flex: 1; min-width: 80px; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 10px; text-align: center;">
+                                            <div style="color: #8A929A; font-size: 9px; text-transform: uppercase; font-weight: 700;">Max Storico</div>
+                                            <div style="color: #00FF7F; font-size: 14px; font-weight: 800;">{detail_rows[0]['valore_fmt'] if max_val == 0 else [r for r in detail_rows if r['valore'] == max_val][0]['valore_fmt'] if any(r['valore'] == max_val for r in detail_rows) else f'{max_val:.2f}'}</div>
+                                        </div>
+                                    """
+                                    if cagr_val is not None:
+                                        cagr_color = "#00FF7F" if cagr_val >= 0 else "#EF4444"
+                                        cagr_sign = "+" if cagr_val >= 0 else ""
+                                        kpi_html += f"""
+                                        <div style="flex: 1; min-width: 80px; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 10px; text-align: center;">
+                                            <div style="color: #8A929A; font-size: 9px; text-transform: uppercase; font-weight: 700;">CAGR</div>
+                                            <div style="color: {cagr_color}; font-size: 14px; font-weight: 800;">{cagr_sign}{cagr_val:.1f}%</div>
+                                        </div>
+                                        """
+                                    kpi_html += "</div>"
+                                    st.markdown(kpi_html, unsafe_allow_html=True)
+                                    
+                                    # Data table
+                                    table_rows = ""
+                                    for r_idx, row_d in enumerate(detail_rows[-6:]):
+                                        bg = "rgba(255,255,255,0.02)" if r_idx % 2 == 0 else "rgba(15,23,42,0.4)"
+                                        yoy_cell = ""
+                                        if row_d["yoy_pct"] is not None:
+                                            yoy_c = "#00FF7F" if row_d["yoy_pct"] >= 0 else "#EF4444"
+                                            yoy_sign = "+" if row_d["yoy_pct"] >= 0 else ""
+                                            yoy_cell = f"<td style='text-align:right;padding:6px 8px;color:{yoy_c};font-weight:700;font-size:11px;'>{yoy_sign}{row_d['yoy_pct']:.1f}%</td>"
+                                        else:
+                                            yoy_cell = "<td style='text-align:right;padding:6px 8px;color:#64748B;font-size:11px;'>—</td>"
+                                        
+                                        table_rows += f"""
+                                        <tr style="background:{bg};">
+                                            <td style="padding:6px 8px;color:#00F2FE;font-weight:700;font-size:11px;">{row_d['periodo']}</td>
+                                            <td style="text-align:right;padding:6px 8px;color:#FFFFFF;font-size:11px;">{row_d['valore_fmt']}</td>
+                                            {yoy_cell}
+                                        </tr>"""
                                     
                                     st.markdown(f"""
-                                    <div style="display: flex; gap: 6px; margin-top: 6px;">
-                                        <div style="flex:1;background:rgba(59,130,246,0.15);border-radius:8px;padding:6px 8px;text-align:center;">
-                                            <div style="color:#3B82F6;font-size:12px;font-weight:800;">Gross</div>
-                                            <div style="color:#FFFFFF;font-size:13px;font-weight:700;">{gm_last:.1f}%</div>
-                                        </div>
-                                        <div style="flex:1;background:rgba(245,158,11,0.15);border-radius:8px;padding:6px 8px;text-align:center;">
-                                            <div style="color:#F59E0B;font-size:12px;font-weight:800;">Operating</div>
-                                            <div style="color:#FFFFFF;font-size:13px;font-weight:700;">{om_last:.1f}%</div>
-                                        </div>
-                                        <div style="flex:1;background:rgba(16,185,129,0.15);border-radius:8px;padding:6px 8px;text-align:center;">
-                                            <div style="color:#10B981;font-size:12px;font-weight:800;">Net</div>
-                                            <div style="color:#FFFFFF;font-size:13px;font-weight:700;">{nm_last:.1f}%</div>
-                                        </div>
+                                    <div style="border:1px solid rgba(255,255,255,0.06);border-radius:10px;overflow:hidden;margin-top:4px;">
+                                        <table style="width:100%;border-collapse:collapse;font-family:'Inter',sans-serif;">
+                                            <thead>
+                                                <tr style="background:rgba(15,23,42,0.9);">
+                                                    <th style="text-align:left;padding:8px;color:#8A929A;font-size:10px;text-transform:uppercase;">Periodo</th>
+                                                    <th style="text-align:right;padding:8px;color:#8A929A;font-size:10px;text-transform:uppercase;">Valore</th>
+                                                    <th style="text-align:right;padding:8px;color:#8A929A;font-size:10px;text-transform:uppercase;">YoY %</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>{table_rows}</tbody>
+                                        </table>
                                     </div>
                                     """, unsafe_allow_html=True)
-                                
-                                # Extra Debt/Equity ratio detail
-                                if chart_name == "Debt vs Equity" and "debt_to_equity" in chart_detail:
-                                    de_ratios = chart_detail["debt_to_equity"]
-                                    de_last = de_ratios[-1] if de_ratios and de_ratios[-1] is not None else "N/A"
-                                    de_color = "#10B981" if isinstance(de_last, (int, float)) and de_last < 1 else "#F59E0B"
-                                    
-                                    st.markdown(f"""
-                                    <div style="margin-top: 8px; padding: 10px; background: rgba(15,23,42,0.5); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
-                                        <span style="color: #8A929A; font-size: 10px; font-weight: 700; text-transform: uppercase;">D/E Ratio (ultimo periodo)</span>
-                                        <div style="color: {de_color}; font-size: 20px; font-weight: 800; margin-top: 4px;">{de_last if isinstance(de_last, str) else f'{de_last:.2f}x'}</div>
-                                    </div>
-                                    """, unsafe_allow_html=True)
+            else:
+                # ==============================================================
+                # MODE B: DEDICATED FULL FOCUS / DEEP DIVE VIEW
+                # ==============================================================
+                cur_metric_name = metric_names_list[cur_focused]
+                
+                # Navigation Header Bar
+                nav_col1, nav_col2, nav_col3, nav_col4 = st.columns([2, 1.2, 3, 1.2])
+                
+                with nav_col1:
+                    if st.button("⬅️ Torna alla Griglia Dashboard", use_container_width=True, type="secondary"):
+                        st.session_state["focused_metric_idx"] = None
+                        st.rerun()
+                        
+                with nav_col2:
+                    if st.button("◀️ Precedente", use_container_width=True):
+                        st.session_state["focused_metric_idx"] = (cur_focused - 1) % len(metric_names_list)
+                        st.rerun()
+                        
+                with nav_col3:
+                    selected_m = st.selectbox(
+                        "Seleziona Metrica:",
+                        options=metric_names_list,
+                        index=cur_focused,
+                        key="focus_dropdown_selector",
+                        label_visibility="collapsed"
+                    )
+                    sel_m_idx = metric_names_list.index(selected_m)
+                    if sel_m_idx != cur_focused:
+                        st.session_state["focused_metric_idx"] = sel_m_idx
+                        st.rerun()
+                        
+                with nav_col4:
+                    if st.button("Successivo ▶️", use_container_width=True):
+                        st.session_state["focused_metric_idx"] = (cur_focused + 1) % len(metric_names_list)
+                        st.rerun()
+                        
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, rgba(15,23,42,0.8) 0%, rgba(30,58,138,0.3) 100%); 
+                            border: 1px solid rgba(0, 242, 254, 0.3); border-radius: 16px; padding: 18px; margin: 16px 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                        <div>
+                            <span style="color: #00F2FE; font-size: 11px; font-weight: 700; text-transform: uppercase;">Modalità Focus Dettagliata ({cur_focused + 1} di 9)</span>
+                            <h2 style="color: #FFFFFF; font-family: 'Outfit', sans-serif; font-size: 24px; font-weight: 800; margin: 4px 0;">
+                                {cur_metric_name} — {company_data['name']} ({ticker_to_use})
+                            </h2>
+                        </div>
+                        <div>
+                            <span style="background: rgba(255,255,255,0.1); color: #CBD5E1; padding: 6px 12px; border-radius: 10px; font-size: 12px; font-weight: 600;">
+                                Periodo: {period_choice}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Interactive Controls Bar
+                f_col1, f_col2 = st.columns([2, 2])
+                with f_col1:
+                    tf_choice = st.radio(
+                        "⏱️ Orizzonte Temporale (Timeframe):",
+                        options=["Tutto lo Storico (2009-2026)", "Ultimi 10 Anni/Periodi", "Ultimi 5 Anni/Periodi", "Ultimi 3 Anni/Periodi"],
+                        horizontal=True,
+                        key="focus_timeframe_selector"
+                    )
+                with f_col2:
+                    if period_choice.startswith("Quarter"):
+                        q_choice = st.radio(
+                            "🗓️ Confronto Trimestri (Quarter Comparison):",
+                            options=["Tutti i Trimestri", "Solo Q1", "Solo Q2", "Solo Q3", "Solo Q4"],
+                            horizontal=True,
+                            key="focus_quarter_selector"
+                        )
+                    else:
+                        q_choice = "Tutti i Trimestri"
+                        st.caption("💡 *Passa a 'Quarterly (Q)' nel selettore in alto per attivare il confronto stagionale per singolo trimestre (es. solo Q1 o solo Q4).*")
+                
+                st.divider()
+                
+                # Render High-Res Focused Chart & Data Table
+                with st.spinner(f"Analisi avanzata {cur_metric_name} in corso..."):
+                    fig_focused, df_focused = qualtrim_engine.create_focused_financial_chart(
+                        ticker_to_use,
+                        metric_name=cur_metric_name,
+                        period=period_choice,
+                        timeframe=tf_choice,
+                        quarter_filter=q_choice
+                    )
+                    
+                st.plotly_chart(fig_focused, use_container_width=True)
+                
+                # Full Data Table & CSV Download
+                st.markdown(f"#### 📋 Tabella Dati Storici & Variazioni — {cur_metric_name}")
+                st.dataframe(df_focused, use_container_width=True, hide_index=True)
+                
+                csv_focused = df_focused.to_csv(index=False)
+                st.download_button(
+                    label=f"📥 Scarica CSV ({cur_metric_name} - {ticker_to_use})",
+                    data=csv_focused,
+                    file_name=f"{ticker_to_use}_{cur_metric_name}_{period_choice}.csv",
+                    mime="text/csv"
+                )
         
         with tab_bus:
             st.subheader(f"📊 Ricavi per Segmento Aziendale ({company_data['name']} - {period_choice})")
