@@ -908,6 +908,413 @@ def create_multiyear_financial_trends_chart(ticker: str, period="Annual"):
 
 
 # ==============================================================================
+# PREMIUM MINI-CHART GRID FUNCTIONS (Financial Overview Dashboard)
+# ==============================================================================
+
+# Shared layout config for compact mini-charts
+_MINI_CHART_LAYOUT = dict(
+    template="plotly_dark",
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(15,23,42,0.4)",
+    font=dict(family="Inter, sans-serif", color="#E2E8F0", size=11),
+    margin=dict(l=35, r=15, t=40, b=30),
+    height=280,
+    showlegend=False,
+    xaxis=dict(
+        gridcolor="rgba(255,255,255,0.04)",
+        tickfont=dict(color="#94A3B8", size=9),
+        type="category"
+    ),
+    yaxis=dict(
+        gridcolor="rgba(255,255,255,0.06)",
+        tickfont=dict(color="#94A3B8", size=9),
+        side="right"
+    )
+)
+
+
+def _get_yf_financials(ticker: str, period: str):
+    """Shared helper to fetch income_stmt, balance_sheet, cashflow from yfinance."""
+    try:
+        stock = yf.Ticker(ticker.upper())
+        is_q = period.startswith("Quarter")
+        inc = stock.quarterly_income_stmt if is_q else stock.income_stmt
+        bs = stock.quarterly_balance_sheet if is_q else stock.balance_sheet
+        cf = stock.quarterly_cashflow if is_q else stock.cashflow
+
+        if inc is None or inc.empty:
+            return None, None, None, [], []
+
+        cols = [c for c in inc.columns if hasattr(c, "strftime")][::-1]
+        if is_q:
+            labels = [f"Q{(c.month-1)//3+1} {str(c.year)[2:]}" for c in cols]
+        else:
+            labels = [c.strftime("%Y") for c in cols]
+        return inc, bs, cf, cols, labels
+    except Exception as e:
+        logger.warning(f"yfinance fetch error for {ticker}: {e}")
+        return None, None, None, [], []
+
+
+def _safe_extract(df, row_name, cols):
+    """Safely extract a row from a DataFrame, return array of floats in billions."""
+    if df is None or df.empty:
+        return np.zeros(len(cols))
+    for name in (row_name if isinstance(row_name, list) else [row_name]):
+        if name in df.index:
+            try:
+                vals = df.loc[name][cols].values.astype(float) / 1e9
+                return np.nan_to_num(vals, nan=0.0)
+            except Exception:
+                pass
+    return np.zeros(len(cols))
+
+
+def _safe_extract_raw(df, row_name, cols):
+    """Safely extract a row without dividing by 1e9 (for EPS, ratios, etc.)."""
+    if df is None or df.empty:
+        return np.zeros(len(cols))
+    for name in (row_name if isinstance(row_name, list) else [row_name]):
+        if name in df.index:
+            try:
+                vals = df.loc[name][cols].values.astype(float)
+                return np.nan_to_num(vals, nan=0.0)
+            except Exception:
+                pass
+    return np.zeros(len(cols))
+
+
+def _build_detail_data(labels, values, unit="$B", fmt_fn=None):
+    """Build detail data dict with YoY% changes for expander panels."""
+    if fmt_fn is None:
+        fmt_fn = lambda v: f"${v:.2f}B"
+    
+    rows = []
+    for i, (lbl, val) in enumerate(zip(labels, values)):
+        yoy = None
+        if i > 0 and values[i-1] != 0:
+            yoy = ((val - values[i-1]) / abs(values[i-1])) * 100
+        rows.append({
+            "periodo": lbl,
+            "valore": val,
+            "valore_fmt": fmt_fn(val),
+            "yoy_pct": yoy
+        })
+    
+    non_zero = [v for v in values if v != 0]
+    detail = {
+        "rows": rows,
+        "max_val": max(values) if len(values) > 0 else 0,
+        "min_val": min(non_zero) if non_zero else 0,
+        "latest": values[-1] if len(values) > 0 else 0,
+        "unit": unit
+    }
+    
+    # CAGR
+    if len(non_zero) >= 2 and values[0] > 0 and values[-1] > 0:
+        n_years = max(1, len(values) - 1)
+        detail["cagr"] = ((values[-1] / values[0]) ** (1 / n_years) - 1) * 100
+    
+    return detail
+
+
+def _apply_mini_layout(fig, title_text, y_title="", y_tickformat=None):
+    """Apply standard mini-chart layout to a figure."""
+    layout = dict(_MINI_CHART_LAYOUT)
+    layout["title"] = dict(
+        text=f"<b>{title_text}</b>",
+        font=dict(size=14, color="#FFFFFF", family="Outfit, Inter, sans-serif"),
+        x=0.02, xanchor="left"
+    )
+    if y_title:
+        layout["yaxis"] = dict(layout["yaxis"], title=None)
+    if y_tickformat:
+        layout["yaxis"] = dict(layout["yaxis"], tickformat=y_tickformat)
+    fig.update_layout(**layout)
+    return fig
+
+
+def create_revenue_bar_chart(ticker: str, period="Annual"):
+    """Compact Revenue bar chart — blue bars."""
+    inc, _, _, cols, labels = _get_yf_financials(ticker, period)
+    vals = _safe_extract(inc, "Total Revenue", cols)
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=labels, y=vals,
+        marker_color="#3B82F6",
+        marker=dict(line=dict(color="#0F172A", width=0.5)),
+        hovertemplate="<b>Revenue</b><br>%{x}: <b>$%{y:.2f}B</b><extra></extra>"
+    ))
+    _apply_mini_layout(fig, "Revenue", y_tickformat="$.1f")
+    
+    detail = _build_detail_data(labels, vals.tolist())
+    return fig, detail
+
+
+def create_eps_bar_chart(ticker: str, period="Annual"):
+    """Compact EPS bar chart — amber/orange bars, dual-color pos/neg."""
+    inc, _, _, cols, labels = _get_yf_financials(ticker, period)
+    
+    # Try Diluted EPS first, then Basic EPS
+    eps_vals = _safe_extract_raw(inc, ["Diluted EPS", "Basic EPS"], cols)
+    
+    colors = ["#F59E0B" if v >= 0 else "#EF4444" for v in eps_vals]
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=labels, y=eps_vals,
+        marker_color=colors,
+        marker=dict(line=dict(color="#0F172A", width=0.5)),
+        hovertemplate="<b>EPS</b><br>%{x}: <b>$%{y:.2f}</b><extra></extra>"
+    ))
+    _apply_mini_layout(fig, "EPS", y_tickformat="$.2f")
+    
+    detail = _build_detail_data(labels, eps_vals.tolist(), unit="$", fmt_fn=lambda v: f"${v:.2f}")
+    return fig, detail
+
+
+def create_fcf_bar_chart(ticker: str, period="Annual"):
+    """Compact Free Cash Flow bar chart — teal bars."""
+    _, _, cf, cols, labels = _get_yf_financials(ticker, period)
+    vals = _safe_extract(cf, "Free Cash Flow", cols)
+    
+    colors = ["#10B981" if v >= 0 else "#EF4444" for v in vals]
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=labels, y=vals,
+        marker_color=colors,
+        marker=dict(line=dict(color="#0F172A", width=0.5)),
+        hovertemplate="<b>Free Cash Flow</b><br>%{x}: <b>$%{y:.2f}B</b><extra></extra>"
+    ))
+    _apply_mini_layout(fig, "Free Cash Flow", y_tickformat="$.1f")
+    
+    detail = _build_detail_data(labels, vals.tolist())
+    return fig, detail
+
+
+def create_margins_line_chart(ticker: str, period="Annual"):
+    """Multi-line margins chart — Gross, Operating, Net Margin %."""
+    inc, _, _, cols, labels = _get_yf_financials(ticker, period)
+    
+    revenue = _safe_extract(inc, "Total Revenue", cols)
+    gross_p = _safe_extract(inc, "Gross Profit", cols)
+    op_inc = _safe_extract(inc, ["Operating Income", "EBIT"], cols)
+    net_inc = _safe_extract(inc, "Net Income", cols)
+    
+    # Calculate margins (avoiding division by zero)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        gross_m = np.where(revenue != 0, (gross_p / revenue) * 100, 0)
+        op_m = np.where(revenue != 0, (op_inc / revenue) * 100, 0)
+        net_m = np.where(revenue != 0, (net_inc / revenue) * 100, 0)
+    
+    fig = go.Figure()
+    for name, m_vals, color, dash in [
+        ("Gross Margin", gross_m, "#3B82F6", None),
+        ("Operating Margin", op_m, "#F59E0B", None),
+        ("Net Margin", net_m, "#10B981", "dot")
+    ]:
+        fig.add_trace(go.Scatter(
+            x=labels, y=m_vals, name=name,
+            mode="lines+markers",
+            line=dict(color=color, width=2.5, dash=dash, shape="spline"),
+            marker=dict(size=5, color=color),
+            hovertemplate=f"<b>{name}</b><br>%{{x}}: <b>%{{y:.1f}}%</b><extra></extra>"
+        ))
+    
+    layout = dict(_MINI_CHART_LAYOUT)
+    layout["showlegend"] = True
+    layout["legend"] = dict(
+        orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
+        font=dict(size=8, color="#CBD5E1"),
+        bgcolor="rgba(0,0,0,0)"
+    )
+    layout["title"] = dict(
+        text="<b>Margins</b>",
+        font=dict(size=14, color="#FFFFFF", family="Outfit, Inter, sans-serif"),
+        x=0.02, xanchor="left"
+    )
+    layout["yaxis"] = dict(layout["yaxis"], tickformat=".0f", ticksuffix="%")
+    layout["height"] = 300
+    fig.update_layout(**layout)
+    
+    detail = _build_detail_data(
+        labels, gross_m.tolist(), unit="%",
+        fmt_fn=lambda v: f"{v:.1f}%"
+    )
+    detail["op_margin"] = op_m.tolist()
+    detail["net_margin"] = net_m.tolist()
+    detail["gross_margin"] = gross_m.tolist()
+    return fig, detail
+
+
+def create_gross_profit_bar_chart(ticker: str, period="Annual"):
+    """Compact Gross Profit bar chart — light blue bars."""
+    inc, _, _, cols, labels = _get_yf_financials(ticker, period)
+    vals = _safe_extract(inc, "Gross Profit", cols)
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=labels, y=vals,
+        marker_color="#60A5FA",
+        marker=dict(line=dict(color="#0F172A", width=0.5)),
+        hovertemplate="<b>Gross Profit</b><br>%{x}: <b>$%{y:.2f}B</b><extra></extra>"
+    ))
+    _apply_mini_layout(fig, "Gross Profit", y_tickformat="$.1f")
+    
+    detail = _build_detail_data(labels, vals.tolist())
+    return fig, detail
+
+
+def create_ebit_bar_chart(ticker: str, period="Annual"):
+    """Compact EBIT/Operating Income bar chart — red/coral bars, dual-color pos/neg."""
+    inc, _, _, cols, labels = _get_yf_financials(ticker, period)
+    vals = _safe_extract(inc, ["Operating Income", "EBIT"], cols)
+    
+    colors = ["#EF4444" if v >= 0 else "#991B1B" for v in vals]
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=labels, y=vals,
+        marker_color=colors,
+        marker=dict(line=dict(color="#0F172A", width=0.5)),
+        hovertemplate="<b>EBIT</b><br>%{x}: <b>$%{y:.2f}B</b><extra></extra>"
+    ))
+    _apply_mini_layout(fig, "EBIT", y_tickformat="$.1f")
+    
+    detail = _build_detail_data(labels, vals.tolist())
+    return fig, detail
+
+
+def create_net_income_bar_chart(ticker: str, period="Annual"):
+    """Compact Net Income bar chart — purple/violet bars."""
+    inc, _, _, cols, labels = _get_yf_financials(ticker, period)
+    vals = _safe_extract(inc, "Net Income", cols)
+    
+    colors = ["#8B5CF6" if v >= 0 else "#EF4444" for v in vals]
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=labels, y=vals,
+        marker_color=colors,
+        marker=dict(line=dict(color="#0F172A", width=0.5)),
+        hovertemplate="<b>Net Income</b><br>%{x}: <b>$%{y:.2f}B</b><extra></extra>"
+    ))
+    _apply_mini_layout(fig, "Net Income", y_tickformat="$.1f")
+    
+    detail = _build_detail_data(labels, vals.tolist())
+    return fig, detail
+
+
+def create_capex_bar_chart(ticker: str, period="Annual"):
+    """Compact CapEx bar chart — dark orange bars (shown as positive values)."""
+    _, _, cf, cols, labels = _get_yf_financials(ticker, period)
+    vals = _safe_extract(cf, ["Capital Expenditure", "Capital Expenditures"], cols)
+    # CapEx is typically negative in cashflow, show as positive
+    vals = np.abs(vals)
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=labels, y=vals,
+        marker_color="#F97316",
+        marker=dict(line=dict(color="#0F172A", width=0.5)),
+        hovertemplate="<b>CapEx</b><br>%{x}: <b>$%{y:.2f}B</b><extra></extra>"
+    ))
+    _apply_mini_layout(fig, "CapEx", y_tickformat="$.1f")
+    
+    detail = _build_detail_data(labels, vals.tolist())
+    return fig, detail
+
+
+def create_debt_equity_chart(ticker: str, period="Annual"):
+    """Compact Debt vs Equity bar+line chart — pink bars + teal line."""
+    _, bs, _, cols, labels = _get_yf_financials(ticker, period)
+    
+    total_debt = _safe_extract(bs, ["Total Debt", "Long Term Debt"], cols)
+    equity = _safe_extract(bs, ["Stockholders Equity", "Total Stockholder Equity", "Stockholders' Equity"], cols)
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=labels, y=total_debt, name="Total Debt",
+        marker_color="#EC4899",
+        marker=dict(line=dict(color="#0F172A", width=0.5)),
+        hovertemplate="<b>Total Debt</b><br>%{x}: <b>$%{y:.2f}B</b><extra></extra>"
+    ))
+    fig.add_trace(go.Scatter(
+        x=labels, y=equity, name="Equity",
+        mode="lines+markers",
+        line=dict(color="#14B8A6", width=2.5, shape="spline"),
+        marker=dict(size=6, color="#14B8A6"),
+        hovertemplate="<b>Equity</b><br>%{x}: <b>$%{y:.2f}B</b><extra></extra>"
+    ))
+    
+    layout = dict(_MINI_CHART_LAYOUT)
+    layout["showlegend"] = True
+    layout["legend"] = dict(
+        orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
+        font=dict(size=8, color="#CBD5E1"),
+        bgcolor="rgba(0,0,0,0)"
+    )
+    layout["title"] = dict(
+        text="<b>Debt vs Equity</b>",
+        font=dict(size=14, color="#FFFFFF", family="Outfit, Inter, sans-serif"),
+        x=0.02, xanchor="left"
+    )
+    layout["yaxis"] = dict(layout["yaxis"], tickformat="$.1f")
+    fig.update_layout(**layout)
+    
+    detail = _build_detail_data(labels, total_debt.tolist())
+    detail["equity"] = equity.tolist()
+    detail["debt_to_equity"] = [
+        round(d / e, 2) if e != 0 else None 
+        for d, e in zip(total_debt.tolist(), equity.tolist())
+    ]
+    return fig, detail
+
+
+def create_mini_financial_chart_grid(ticker: str, period="Annual"):
+    """
+    Master function: creates all 9 mini-charts and returns an ordered list of dicts.
+    Each dict has: name, emoji, fig, detail, color (for the expander accent).
+    """
+    chart_configs = [
+        ("Revenue",        "💰", create_revenue_bar_chart,     "#3B82F6"),
+        ("EPS",            "📈", create_eps_bar_chart,          "#F59E0B"),
+        ("Free Cash Flow", "💵", create_fcf_bar_chart,          "#10B981"),
+        ("Margins",        "📊", create_margins_line_chart,     "#3B82F6"),
+        ("Gross Profit",   "🏦", create_gross_profit_bar_chart, "#60A5FA"),
+        ("EBIT",           "⚡", create_ebit_bar_chart,         "#EF4444"),
+        ("Net Income",     "💎", create_net_income_bar_chart,   "#8B5CF6"),
+        ("CapEx",          "🏗️", create_capex_bar_chart,        "#F97316"),
+        ("Debt vs Equity", "⚖️", create_debt_equity_chart,      "#EC4899"),
+    ]
+    
+    results = []
+    for name, emoji, fn, color in chart_configs:
+        try:
+            fig, detail = fn(ticker, period)
+            results.append({
+                "name": name,
+                "emoji": emoji,
+                "fig": fig,
+                "detail": detail,
+                "color": color
+            })
+        except Exception as e:
+            logger.warning(f"Mini-chart '{name}' error for {ticker}: {e}")
+            results.append({
+                "name": name,
+                "emoji": emoji,
+                "fig": None,
+                "detail": None,
+                "color": color
+            })
+    
+    return results
+
+
+# ==============================================================================
 # PREMIUM HTML/CSS INSTITUTIONAL DATA TABLE RENDERER
 # ==============================================================================
 
