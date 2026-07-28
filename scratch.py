@@ -1,9 +1,18 @@
-import yfinance as yf
-ticker = yf.Ticker("AAPL")
-cf = ticker.cash_flow
-if not cf.empty and 'Free Cash Flow' in cf.index:
-    print("Dates:", list(cf.columns))
-    print("FCF row:", cf.loc['Free Cash Flow'].dropna().values)
-    print("iloc[0]:", cf.loc['Free Cash Flow'].dropna().iloc[0])
+import re
+
+def fix_calcolatore():
+    path = "calcolatore.py"
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
     
-print("Info FCF:", ticker.info.get('freeCashflow'))
+    # 1. Fix all E722 bare excepts: 'except:' -> 'except Exception:'
+    # We look for 'except:' at the start of a line or after spaces, possibly followed by comments
+    modified, count_excepts = re.subn(r'^(\s*)except\s*:(.*)$', r'\1except Exception:\2', content, flags=re.MULTILINE)
+    print(f"Fixed {count_excepts} bare excepts.")
+
+    # Let's save the modified content back
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(modified)
+
+if __name__ == "__main__":
+    fix_calcolatore()

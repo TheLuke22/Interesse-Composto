@@ -1795,12 +1795,12 @@ st.sidebar.markdown("""
 [data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(1)::before { content: '🏠 Overview'; }
 [data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(2)::before { content: '🧮 Calculators'; }
 [data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(3)::before { content: '📉 Analytics'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(4)::before { content: '💼 Portfolio'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(5)::before { content: '📰 Financial News'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(6)::before { content: '👑 Hedge Funds'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(7)::before { content: '🌍 Macro & Market'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(8)::before { content: '🔍 Discovery'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(9)::before { content: '🤖 Hedge Fund OS AI'; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(4)::before { content: '🧩 Business Segments'; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(5)::before { content: '💼 Portfolio'; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(6)::before { content: '📰 Financial News'; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(7)::before { content: '👑 Hedge Funds'; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(8)::before { content: '🌍 Macro & Market'; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(9)::before { content: '🔍 Discovery'; }
 </style>
 <div class="sidebar-logo">
     <span class="intelligent">The Intelligent</span><br>
