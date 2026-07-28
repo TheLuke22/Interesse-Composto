@@ -1731,32 +1731,12 @@ st.sidebar.markdown("""
 .sidebar-logo .finance {
     font-weight: 700;
 }
-/* Stile base delle schede di navigazione */
-[data-testid="stSidebar"] [data-testid="stRadioButton"] label,
-[data-testid="stSidebar"] [data-baseweb="radio"] {
-    display: flex !important;
-    align-items: center !important;
-    width: 100% !important;
-    padding: 12px 16px !important;
-    margin-bottom: 8px !important;
-    border-radius: 10px !important;
-    transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
-    position: relative !important;
-    cursor: pointer !important;
-    background: rgba(255, 255, 255, 0.03) !important;
-    border: 1px solid rgba(255, 255, 255, 0.06) !important;
-    box-sizing: border-box !important;
-}
-
-/* Nascondi i cerchi/puntini nativi di Streamlit su tutte le versioni (Local & Cloud) */
-[data-testid="stSidebar"] [data-testid="stRadioButton"] label > div:first-child,
-[data-testid="stSidebar"] [data-testid="stRadioButton"] label > div:first-of-type,
-[data-testid="stSidebar"] [data-baseweb="radio"] > div:first-child,
-[data-testid="stSidebar"] [data-baseweb="radio"] > div:first-of-type,
+/* 1. NASCONDI TUTTI I PALLINI, CERCHI E INPUT RADIO (TUTTE LE VERSIONI STREAMLIT) */
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label > *:not(:last-child),
+[data-testid="stSidebar"] [data-baseweb="radio"] > *:not(:last-child),
+[data-testid="stSidebar"] div[role="radiogroup"] label > *:not(:last-child),
+[data-testid="stSidebar"] [data-baseweb="radio"] input,
 [data-testid="stSidebar"] [data-baseweb="radio"] div[aria-hidden="true"],
-[data-testid="stSidebar"] [data-baseweb="radio"] input + div,
-[data-testid="stSidebar"] [aria-checked] > div:first-child,
-[data-testid="stSidebar"] [aria-checked] > div:first-of-type,
 [data-testid="stSidebar"] [data-baseweb="radio"] svg {
     display: none !important;
     width: 0 !important;
@@ -1765,30 +1745,53 @@ st.sidebar.markdown("""
     visibility: hidden !important;
     margin: 0 !important;
     padding: 0 !important;
+    position: absolute !important;
+    pointer-events: none !important;
 }
 
-/* Testo delle schede */
+/* 2. STILE BASE SCHEDE CARD DI NAVIGAZIONE */
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label,
+[data-testid="stSidebar"] [data-baseweb="radio"],
+[data-testid="stSidebar"] div[role="radiogroup"] label {
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    padding: 12px 16px !important;
+    margin-bottom: 8px !important;
+    border-radius: 10px !important;
+    transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    position: relative !important; /* CRUCIALE PER ANCORARE I TITOLI DECORATIVI */
+    cursor: pointer !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    box-sizing: border-box !important;
+}
+
+/* 3. TESTO NELLE SCHEDE */
 [data-testid="stSidebar"] [data-testid="stRadioButton"] label p,
-[data-testid="stSidebar"] [data-baseweb="radio"] p {
+[data-testid="stSidebar"] [data-baseweb="radio"] p,
+[data-testid="stSidebar"] div[role="radiogroup"] label p {
     color: #e2e8f0 !important;
     font-size: 14px !important;
     font-weight: 600 !important;
     margin: 0 !important;
     padding: 0 !important;
+    line-height: 1.4 !important;
 }
 
-/* Hover pulito per i bottoni con micro-spostamento laterale e bagliore ciano */
+/* 4. HOVER STATE CON BAGLIORE CIANO E MICRO-SPOSTAMENTO */
 [data-testid="stSidebar"] [data-testid="stRadioButton"] label:hover,
-[data-testid="stSidebar"] [data-baseweb="radio"]:hover {
+[data-testid="stSidebar"] [data-baseweb="radio"]:hover,
+[data-testid="stSidebar"] div[role="radiogroup"] label:hover {
     background-color: rgba(255, 255, 255, 0.07) !important;
     border-color: rgba(0, 242, 254, 0.4) !important;
     transform: translateX(4px) !important;
 }
 
-/* Elemento attivo: Gradiente Ciano/Blu Neon */
+/* 5. VOCE ATTIVA (EVIDENZIATORE NEON CIANO) */
 [data-testid="stSidebar"] [data-testid="stRadioButton"] label:has(input:checked),
 [data-testid="stSidebar"] [data-baseweb="radio"]:has(input:checked),
-[data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) {
+[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {
     background: linear-gradient(135deg, rgba(79, 172, 254, 0.16) 0%, rgba(0, 242, 254, 0.16) 100%) !important;
     border: 1px solid rgba(0, 242, 254, 0.5) !important;
     border-left: 4px solid #00f2fe !important;
@@ -1797,9 +1800,82 @@ st.sidebar.markdown("""
 
 [data-testid="stSidebar"] [data-testid="stRadioButton"] label:has(input:checked) p,
 [data-testid="stSidebar"] [data-baseweb="radio"]:has(input:checked) p,
-[data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) p {
+[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) p {
     color: #00f2fe !important;
     font-weight: 700 !important;
+}
+
+/* 6. SPAZIATURA GRUPPI E TITOLI DI CATEGORIA ANCORATI */
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-of-type(1),
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label:nth-of-type(1) { margin-top: 22px !important; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-of-type(2),
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label:nth-of-type(2) { margin-top: 28px !important; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-of-type(5),
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label:nth-of-type(5) { margin-top: 28px !important; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-of-type(6),
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label:nth-of-type(6) { margin-top: 28px !important; }
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-of-type(9),
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label:nth-of-type(9) { margin-top: 28px !important; }
+
+/* TITOLI DECORATIVI ANCORATI SOPRA I GRUPPI */
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-of-type(1)::before,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label:nth-of-type(1)::before {
+    content: 'OVERVIEW';
+    position: absolute;
+    top: -20px;
+    left: 2px;
+    font-size: 10px;
+    font-weight: 800;
+    color: #64748b;
+    letter-spacing: 1px;
+}
+
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-of-type(2)::before,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label:nth-of-type(2)::before {
+    content: 'CALCULATORS & ANALYTICS';
+    position: absolute;
+    top: -20px;
+    left: 2px;
+    font-size: 10px;
+    font-weight: 800;
+    color: #64748b;
+    letter-spacing: 1px;
+}
+
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-of-type(5)::before,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label:nth-of-type(5)::before {
+    content: 'PORTFOLIO';
+    position: absolute;
+    top: -20px;
+    left: 2px;
+    font-size: 10px;
+    font-weight: 800;
+    color: #64748b;
+    letter-spacing: 1px;
+}
+
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-of-type(6)::before,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label:nth-of-type(6)::before {
+    content: 'MARKET INTELLIGENCE';
+    position: absolute;
+    top: -20px;
+    left: 2px;
+    font-size: 10px;
+    font-weight: 800;
+    color: #64748b;
+    letter-spacing: 1px;
+}
+
+[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-of-type(9)::before,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label:nth-of-type(9)::before {
+    content: 'DISCOVERY';
+    position: absolute;
+    top: -20px;
+    left: 2px;
+    font-size: 10px;
+    font-weight: 800;
+    color: #64748b;
+    letter-spacing: 1px;
 }
 </style>
 <div class="sidebar-logo">
