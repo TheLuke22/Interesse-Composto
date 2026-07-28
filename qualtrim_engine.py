@@ -933,55 +933,128 @@ _MINI_CHART_LAYOUT = dict(
 )
 
 
-def _get_yf_financials(ticker: str, period: str):
-    """Shared helper to fetch income_stmt, balance_sheet, cashflow from yfinance."""
-    try:
-        stock = yf.Ticker(ticker.upper())
-        is_q = period.startswith("Quarter")
-        inc = stock.quarterly_income_stmt if is_q else stock.income_stmt
-        bs = stock.quarterly_balance_sheet if is_q else stock.balance_sheet
-        cf = stock.quarterly_cashflow if is_q else stock.cashflow
+def _get_extended_financials(ticker: str, period="Annual"):
+    """
+    Extract maximum multi-year financial history combining SEC EDGAR XBRL (15-17 years),
+    QUALTRIM_DATABASE, and yfinance fallback.
+    Returns dict with arrays for all 9 metrics aligned to the period labels.
+    """
+    ticker_upper = ticker.upper()
+    is_q = period.startswith("Quarter")
+    cik = get_sec_cik(ticker_upper)
+    
+    sec_maps = {}
+    if cik:
+        try:
+            res = requests.get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json", headers=SEC_HEADERS, timeout=8)
+            if res.status_code == 200:
+                facts = res.json().get("facts", {}).get("us-gaap", {})
+                
+                def extract_tag(tag_list, unit="USD", scale=1e9, is_abs=False):
+                    out = {}
+                    for tag in tag_list:
+                        if tag in facts and unit in facts[tag].get("units", {}):
+                            for item in facts[tag]["units"][unit]:
+                                fy = item.get("fy")
+                                val = item.get("val")
+                                form = item.get("form")
+                                end_d = item.get("end")
+                                fp = item.get("fp")
+                                if val is None or not end_d: continue
+                                val_conv = abs(val / scale) if is_abs else (val / scale)
+                                
+                                if not is_q and form == "10-K" and fy and 2008 <= fy <= 2026 and fp == "FY":
+                                    fy_str = str(fy)
+                                    if fy_str not in out:
+                                        out[fy_str] = round(val_conv, 2)
+                                elif is_q and form == "10-Q" and end_d >= "2016-01-01":
+                                    lbl = format_quarter_label(end_d)
+                                    if lbl not in out:
+                                        out[lbl] = (end_d, round(val_conv, 2))
+                    return out
 
-        if inc is None or inc.empty:
-            return None, None, None, [], []
+                sec_maps["revenue"] = extract_tag(["RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet", "Revenues"])
+                sec_maps["eps"] = extract_tag(["EarningsPerShareDiluted", "EarningsPerShareBasic"], unit="USD/shares", scale=1.0)
+                sec_maps["gross_p"] = extract_tag(["GrossProfit"])
+                sec_maps["op_inc"] = extract_tag(["OperatingIncomeLoss"])
+                sec_maps["net_inc"] = extract_tag(["NetIncomeLoss"])
+                sec_maps["ocf"] = extract_tag(["NetCashProvidedByUsedInOperatingActivities"])
+                sec_maps["capex"] = extract_tag(["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"], is_abs=True)
+                sec_maps["debt"] = extract_tag(["LongTermDebtNoncurrent", "LongTermDebt", "ShortTermBorrowings"])
+                sec_maps["equity"] = extract_tag(["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"])
+        except Exception as e:
+            logger.warning(f"SEC XBRL error for {ticker_upper}: {e}")
 
-        cols = [c for c in inc.columns if hasattr(c, "strftime")][::-1]
-        if is_q:
-            labels = [f"Q{(c.month-1)//3+1} {str(c.year)[2:]}" for c in cols]
-        else:
-            labels = [c.strftime("%Y") for c in cols]
-        return inc, bs, cf, cols, labels
-    except Exception as e:
-        logger.warning(f"yfinance fetch error for {ticker}: {e}")
-        return None, None, None, [], []
+    # Determine periods
+    period_set = set()
+    for m in sec_maps.values():
+        period_set.update(m.keys())
+        
+    if not is_q:
+        sorted_periods = sorted(list(period_set))
+    else:
+        all_q_items = {}
+        for m in sec_maps.values():
+            for k, v in m.items():
+                if isinstance(v, tuple):
+                    all_q_items[k] = v[0]
+        sorted_periods = sorted(list(all_q_items.keys()), key=lambda x: all_q_items[x])[-24:]
 
+    # Fallback to yfinance if SEC empty or fewer than 4 periods
+    if len(sorted_periods) < 4:
+        try:
+            stock = yf.Ticker(ticker_upper)
+            inc = stock.quarterly_income_stmt if is_q else stock.income_stmt
+            if inc is not None and not inc.empty:
+                cols = [c for c in inc.columns if hasattr(c, "strftime")][::-1]
+                if is_q:
+                    sorted_periods = [f"Q{(c.month-1)//3+1} {str(c.year)[2:]}" for c in cols]
+                else:
+                    sorted_periods = [c.strftime("%Y") for c in cols]
+        except Exception: pass
 
-def _safe_extract(df, row_name, cols):
-    """Safely extract a row from a DataFrame, return array of floats in billions."""
-    if df is None or df.empty:
-        return np.zeros(len(cols))
-    for name in (row_name if isinstance(row_name, list) else [row_name]):
-        if name in df.index:
-            try:
-                vals = df.loc[name][cols].values.astype(float) / 1e9
-                return np.nan_to_num(vals, nan=0.0)
-            except Exception:
-                pass
-    return np.zeros(len(cols))
+    def get_arr(key, is_abs=False):
+        d_map = sec_maps.get(key, {})
+        vals = []
+        for p in sorted_periods:
+            v = d_map.get(p)
+            if isinstance(v, tuple): v = v[1]
+            val_f = float(v) if v is not None else 0.0
+            if is_abs: val_f = abs(val_f)
+            vals.append(val_f)
+        return np.array(vals)
 
+    rev_arr = get_arr("revenue")
+    eps_arr = get_arr("eps")
+    gross_p_arr = get_arr("gross_p")
+    op_inc_arr = get_arr("op_inc")
+    net_inc_arr = get_arr("net_inc")
+    ocf_arr = get_arr("ocf")
+    capex_arr = get_arr("capex", is_abs=True)
+    debt_arr = get_arr("debt")
+    equity_arr = get_arr("equity")
+    fcf_arr = np.round(ocf_arr - capex_arr, 2)
 
-def _safe_extract_raw(df, row_name, cols):
-    """Safely extract a row without dividing by 1e9 (for EPS, ratios, etc.)."""
-    if df is None or df.empty:
-        return np.zeros(len(cols))
-    for name in (row_name if isinstance(row_name, list) else [row_name]):
-        if name in df.index:
-            try:
-                vals = df.loc[name][cols].values.astype(float)
-                return np.nan_to_num(vals, nan=0.0)
-            except Exception:
-                pass
-    return np.zeros(len(cols))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        gross_m = np.nan_to_num(np.where(rev_arr > 0, (gross_p_arr / rev_arr) * 100, 0), nan=0.0)
+        op_m = np.nan_to_num(np.where(rev_arr > 0, (op_inc_arr / rev_arr) * 100, 0), nan=0.0)
+        net_m = np.nan_to_num(np.where(rev_arr > 0, (net_inc_arr / rev_arr) * 100, 0), nan=0.0)
+
+    return {
+        "labels": sorted_periods,
+        "revenue": rev_arr,
+        "eps": eps_arr,
+        "fcf": fcf_arr,
+        "gross_profit": gross_p_arr,
+        "gross_margin": gross_m,
+        "op_income": op_inc_arr,
+        "op_margin": op_m,
+        "net_income": net_inc_arr,
+        "net_margin": net_m,
+        "capex": capex_arr,
+        "debt": debt_arr,
+        "equity": equity_arr
+    }
 
 
 def _build_detail_data(labels, values, unit="$B", fmt_fn=None):
@@ -1034,10 +1107,11 @@ def _apply_mini_layout(fig, title_text, y_title="", y_tickformat=None):
     return fig
 
 
-def create_revenue_bar_chart(ticker: str, period="Annual"):
+def create_revenue_bar_chart(ticker: str, period="Annual", metrics=None):
     """Compact Revenue bar chart — blue bars."""
-    inc, _, _, cols, labels = _get_yf_financials(ticker, period)
-    vals = _safe_extract(inc, "Total Revenue", cols)
+    if metrics is None: metrics = _get_extended_financials(ticker, period)
+    labels = metrics["labels"]
+    vals = metrics["revenue"]
     
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -1052,12 +1126,11 @@ def create_revenue_bar_chart(ticker: str, period="Annual"):
     return fig, detail
 
 
-def create_eps_bar_chart(ticker: str, period="Annual"):
+def create_eps_bar_chart(ticker: str, period="Annual", metrics=None):
     """Compact EPS bar chart — amber/orange bars, dual-color pos/neg."""
-    inc, _, _, cols, labels = _get_yf_financials(ticker, period)
-    
-    # Try Diluted EPS first, then Basic EPS
-    eps_vals = _safe_extract_raw(inc, ["Diluted EPS", "Basic EPS"], cols)
+    if metrics is None: metrics = _get_extended_financials(ticker, period)
+    labels = metrics["labels"]
+    eps_vals = metrics["eps"]
     
     colors = ["#F59E0B" if v >= 0 else "#EF4444" for v in eps_vals]
     
@@ -1074,10 +1147,11 @@ def create_eps_bar_chart(ticker: str, period="Annual"):
     return fig, detail
 
 
-def create_fcf_bar_chart(ticker: str, period="Annual"):
+def create_fcf_bar_chart(ticker: str, period="Annual", metrics=None):
     """Compact Free Cash Flow bar chart — teal bars."""
-    _, _, cf, cols, labels = _get_yf_financials(ticker, period)
-    vals = _safe_extract(cf, "Free Cash Flow", cols)
+    if metrics is None: metrics = _get_extended_financials(ticker, period)
+    labels = metrics["labels"]
+    vals = metrics["fcf"]
     
     colors = ["#10B981" if v >= 0 else "#EF4444" for v in vals]
     
@@ -1094,20 +1168,13 @@ def create_fcf_bar_chart(ticker: str, period="Annual"):
     return fig, detail
 
 
-def create_margins_line_chart(ticker: str, period="Annual"):
+def create_margins_line_chart(ticker: str, period="Annual", metrics=None):
     """Multi-line margins chart — Gross, Operating, Net Margin %."""
-    inc, _, _, cols, labels = _get_yf_financials(ticker, period)
-    
-    revenue = _safe_extract(inc, "Total Revenue", cols)
-    gross_p = _safe_extract(inc, "Gross Profit", cols)
-    op_inc = _safe_extract(inc, ["Operating Income", "EBIT"], cols)
-    net_inc = _safe_extract(inc, "Net Income", cols)
-    
-    # Calculate margins (avoiding division by zero)
-    with np.errstate(divide='ignore', invalid='ignore'):
-        gross_m = np.where(revenue != 0, (gross_p / revenue) * 100, 0)
-        op_m = np.where(revenue != 0, (op_inc / revenue) * 100, 0)
-        net_m = np.where(revenue != 0, (net_inc / revenue) * 100, 0)
+    if metrics is None: metrics = _get_extended_financials(ticker, period)
+    labels = metrics["labels"]
+    gross_m = metrics["gross_margin"]
+    op_m = metrics["op_margin"]
+    net_m = metrics["net_margin"]
     
     fig = go.Figure()
     for name, m_vals, color, dash in [
@@ -1149,10 +1216,11 @@ def create_margins_line_chart(ticker: str, period="Annual"):
     return fig, detail
 
 
-def create_gross_profit_bar_chart(ticker: str, period="Annual"):
+def create_gross_profit_bar_chart(ticker: str, period="Annual", metrics=None):
     """Compact Gross Profit bar chart — light blue bars."""
-    inc, _, _, cols, labels = _get_yf_financials(ticker, period)
-    vals = _safe_extract(inc, "Gross Profit", cols)
+    if metrics is None: metrics = _get_extended_financials(ticker, period)
+    labels = metrics["labels"]
+    vals = metrics["gross_profit"]
     
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -1167,10 +1235,11 @@ def create_gross_profit_bar_chart(ticker: str, period="Annual"):
     return fig, detail
 
 
-def create_ebit_bar_chart(ticker: str, period="Annual"):
+def create_ebit_bar_chart(ticker: str, period="Annual", metrics=None):
     """Compact EBIT/Operating Income bar chart — red/coral bars, dual-color pos/neg."""
-    inc, _, _, cols, labels = _get_yf_financials(ticker, period)
-    vals = _safe_extract(inc, ["Operating Income", "EBIT"], cols)
+    if metrics is None: metrics = _get_extended_financials(ticker, period)
+    labels = metrics["labels"]
+    vals = metrics["op_income"]
     
     colors = ["#EF4444" if v >= 0 else "#991B1B" for v in vals]
     
@@ -1187,10 +1256,11 @@ def create_ebit_bar_chart(ticker: str, period="Annual"):
     return fig, detail
 
 
-def create_net_income_bar_chart(ticker: str, period="Annual"):
+def create_net_income_bar_chart(ticker: str, period="Annual", metrics=None):
     """Compact Net Income bar chart — purple/violet bars."""
-    inc, _, _, cols, labels = _get_yf_financials(ticker, period)
-    vals = _safe_extract(inc, "Net Income", cols)
+    if metrics is None: metrics = _get_extended_financials(ticker, period)
+    labels = metrics["labels"]
+    vals = metrics["net_income"]
     
     colors = ["#8B5CF6" if v >= 0 else "#EF4444" for v in vals]
     
@@ -1207,12 +1277,11 @@ def create_net_income_bar_chart(ticker: str, period="Annual"):
     return fig, detail
 
 
-def create_capex_bar_chart(ticker: str, period="Annual"):
-    """Compact CapEx bar chart — dark orange bars (shown as positive values)."""
-    _, _, cf, cols, labels = _get_yf_financials(ticker, period)
-    vals = _safe_extract(cf, ["Capital Expenditure", "Capital Expenditures"], cols)
-    # CapEx is typically negative in cashflow, show as positive
-    vals = np.abs(vals)
+def create_capex_bar_chart(ticker: str, period="Annual", metrics=None):
+    """Compact CapEx bar chart — dark orange bars."""
+    if metrics is None: metrics = _get_extended_financials(ticker, period)
+    labels = metrics["labels"]
+    vals = metrics["capex"]
     
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -1227,12 +1296,12 @@ def create_capex_bar_chart(ticker: str, period="Annual"):
     return fig, detail
 
 
-def create_debt_equity_chart(ticker: str, period="Annual"):
+def create_debt_equity_chart(ticker: str, period="Annual", metrics=None):
     """Compact Debt vs Equity bar+line chart — pink bars + teal line."""
-    _, bs, _, cols, labels = _get_yf_financials(ticker, period)
-    
-    total_debt = _safe_extract(bs, ["Total Debt", "Long Term Debt"], cols)
-    equity = _safe_extract(bs, ["Stockholders Equity", "Total Stockholder Equity", "Stockholders' Equity"], cols)
+    if metrics is None: metrics = _get_extended_financials(ticker, period)
+    labels = metrics["labels"]
+    total_debt = metrics["debt"]
+    equity = metrics["equity"]
     
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -1275,9 +1344,11 @@ def create_debt_equity_chart(ticker: str, period="Annual"):
 
 def create_mini_financial_chart_grid(ticker: str, period="Annual"):
     """
-    Master function: creates all 9 mini-charts and returns an ordered list of dicts.
-    Each dict has: name, emoji, fig, detail, color (for the expander accent).
+    Master function: fetches multi-year extended financial metrics ONCE,
+    then generates all 9 mini-charts and returns an ordered list of dicts.
     """
+    metrics = _get_extended_financials(ticker, period)
+    
     chart_configs = [
         ("Revenue",        "💰", create_revenue_bar_chart,     "#3B82F6"),
         ("EPS",            "📈", create_eps_bar_chart,          "#F59E0B"),
@@ -1293,7 +1364,7 @@ def create_mini_financial_chart_grid(ticker: str, period="Annual"):
     results = []
     for name, emoji, fn, color in chart_configs:
         try:
-            fig, detail = fn(ticker, period)
+            fig, detail = fn(ticker, period, metrics=metrics)
             results.append({
                 "name": name,
                 "emoji": emoji,
