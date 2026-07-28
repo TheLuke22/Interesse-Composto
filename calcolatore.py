@@ -1731,11 +1731,19 @@ st.sidebar.markdown("""
 .sidebar-logo .finance {
     font-weight: 700;
 }
-/* 1. NASCONDI TUTTI I PALLINI, CERCHI E INPUT RADIO (TUTTE LE VERSIONI STREAMLIT) */
+/* 1. NASCONDI TUTTI I PALLINI, CERCHI E INPUT RADIO (INCLUSI I DIV INTERNI NIDIFICATI) */
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label input,
+[data-testid="stSidebar"] [data-baseweb="radio"] input,
+[data-testid="stSidebar"] div[role="radiogroup"] input,
 [data-testid="stSidebar"] [data-testid="stRadioButton"] label > *:not(:last-child),
 [data-testid="stSidebar"] [data-baseweb="radio"] > *:not(:last-child),
 [data-testid="stSidebar"] div[role="radiogroup"] label > *:not(:last-child),
-[data-testid="stSidebar"] [data-baseweb="radio"] input,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label div > div:first-child,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label div > div:first-of-type,
+[data-testid="stSidebar"] [data-baseweb="radio"] label div > div:first-child,
+[data-testid="stSidebar"] [data-baseweb="radio"] label div > div:first-of-type,
+[data-testid="stSidebar"] [data-baseweb="radio"] div > div:first-child,
+[data-testid="stSidebar"] [data-baseweb="radio"] div > div:first-of-type,
 [data-testid="stSidebar"] [data-baseweb="radio"] div[aria-hidden="true"],
 [data-testid="stSidebar"] [data-baseweb="radio"] svg {
     display: none !important;
@@ -1747,6 +1755,15 @@ st.sidebar.markdown("""
     padding: 0 !important;
     position: absolute !important;
     pointer-events: none !important;
+}
+
+/* AZZERA MARGINI E PADDING SUL CONTENITORE DEL TESTO */
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label div > div:last-child,
+[data-testid="stSidebar"] [data-baseweb="radio"] label div > div:last-child,
+[data-testid="stSidebar"] div[role="radiogroup"] label div > div:last-child {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    width: 100% !important;
 }
 
 /* 2. STILE BASE SCHEDE CARD DI NAVIGAZIONE */
