@@ -1731,49 +1731,33 @@ st.sidebar.markdown("""
 .sidebar-logo .finance {
     font-weight: 700;
 }
-/* 1. NASCONDI TUTTI I PALLINI, CERCHI E INPUT RADIO (COMPATIBILITÀ STREAMLIT EMOTION/BASEWEB) */
-html body [data-testid="stSidebar"] [data-testid="stRadioButton"] label input,
-html body [data-testid="stSidebar"] [data-baseweb="radio"] input,
-html body [data-testid="stSidebar"] div[role="radiogroup"] input,
-html body [data-testid="stSidebar"] [data-testid="stRadioButton"] label div:not(:has(p)),
-html body [data-testid="stSidebar"] [data-baseweb="radio"] div:not(:has(p)),
-html body [data-testid="stSidebar"] div[role="radiogroup"] label div:not(:has(p)),
-html body [data-testid="stSidebar"] [data-testid="stRadioButton"] label > *:not(:last-child),
-html body [data-testid="stSidebar"] [data-baseweb="radio"] > *:not(:last-child),
-html body [data-testid="stSidebar"] div[role="radiogroup"] label > *:not(:last-child),
-html body [data-testid="stSidebar"] [data-testid="stRadioButton"] label div > div:first-child,
-html body [data-testid="stSidebar"] [data-testid="stRadioButton"] label div > div:first-of-type,
-html body [data-testid="stSidebar"] [data-baseweb="radio"] label div > div:first-child,
-html body [data-testid="stSidebar"] [data-baseweb="radio"] label div > div:first-of-type,
-html body [data-testid="stSidebar"] [data-baseweb="radio"] div > div:first-child,
-html body [data-testid="stSidebar"] [data-baseweb="radio"] div > div:first-of-type,
-html body [data-testid="stSidebar"] [data-baseweb="radio"] div[aria-hidden="true"],
-html body [data-testid="stSidebar"] [data-baseweb="radio"] svg,
-html body [data-testid="stSidebar"] [data-testid="stRadioButton"] svg {
+/* 1. NASCONDI I PALLINI/CERCHI DEL RADIO BUTTON (100% CSS STANDARD COMPATIBILE) */
+[data-testid="stSidebar"] [data-baseweb="radio"] input,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] input,
+[data-testid="stSidebar"] div[role="radiogroup"] input,
+[data-testid="stSidebar"] [data-baseweb="radio"] label > div > div:first-child,
+[data-testid="stSidebar"] [data-baseweb="radio"] label > div > div:first-of-type,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label > div > div:first-child,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label > div > div:first-of-type,
+[data-testid="stSidebar"] [data-baseweb="radio"] div[aria-hidden="true"],
+[data-testid="stSidebar"] [data-testid="stRadioButton"] div[aria-hidden="true"],
+[data-testid="stSidebar"] [data-baseweb="radio"] svg,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] svg {
     display: none !important;
     width: 0 !important;
     height: 0 !important;
-    min-width: 0 !important;
-    min-height: 0 !important;
-    max-width: 0 !important;
-    max-height: 0 !important;
     opacity: 0 !important;
     visibility: hidden !important;
     margin: 0 !important;
     padding: 0 !important;
     border: none !important;
     background: transparent !important;
-    position: absolute !important;
-    pointer-events: none !important;
 }
 
 /* AZZERA MARGINI E PADDING SUL CONTENITORE DEL TESTO */
-html body [data-testid="stSidebar"] [data-testid="stRadioButton"] label div:has(p),
-html body [data-testid="stSidebar"] [data-baseweb="radio"] label div:has(p),
-html body [data-testid="stSidebar"] div[role="radiogroup"] label div:has(p),
-html body [data-testid="stSidebar"] [data-testid="stRadioButton"] label div > div:last-child,
-html body [data-testid="stSidebar"] [data-baseweb="radio"] label div > div:last-child,
-html body [data-testid="stSidebar"] div[role="radiogroup"] label div > div:last-child {
+[data-testid="stSidebar"] [data-baseweb="radio"] label > div > div:last-child,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label > div > div:last-child,
+[data-testid="stSidebar"] div[role="radiogroup"] label > div > div:last-child {
     margin-left: 0 !important;
     padding-left: 0 !important;
     width: 100% !important;
@@ -1819,6 +1803,9 @@ html body [data-testid="stSidebar"] div[role="radiogroup"] label div > div:last-
 }
 
 /* 5. VOCE ATTIVA (EVIDENZIATORE NEON CIANO) */
+[data-testid="stSidebar"] [data-baseweb="radio"][aria-checked="true"],
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label[aria-checked="true"],
+[data-testid="stSidebar"] [aria-checked="true"],
 [data-testid="stSidebar"] [data-testid="stRadioButton"] label:has(input:checked),
 [data-testid="stSidebar"] [data-baseweb="radio"]:has(input:checked),
 [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {
@@ -1828,6 +1815,9 @@ html body [data-testid="stSidebar"] div[role="radiogroup"] label div > div:last-
     box-shadow: 0 0 15px rgba(0, 242, 254, 0.12) !important;
 }
 
+[data-testid="stSidebar"] [data-baseweb="radio"][aria-checked="true"] p,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label[aria-checked="true"] p,
+[data-testid="stSidebar"] [aria-checked="true"] p,
 [data-testid="stSidebar"] [data-testid="stRadioButton"] label:has(input:checked) p,
 [data-testid="stSidebar"] [data-baseweb="radio"]:has(input:checked) p,
 [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) p {
