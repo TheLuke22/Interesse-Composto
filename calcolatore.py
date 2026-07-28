@@ -1743,9 +1743,20 @@ st.sidebar.markdown("""
     border: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 
-/* Nascondi i cerchi nativi di Streamlit */
-[data-testid="stSidebar"] [data-baseweb="radio"] > div:first-child {
+/* Nascondi i cerchi/puntini nativi di Streamlit su tutte le versioni */
+[data-testid="stSidebar"] [data-baseweb="radio"] > div:first-child,
+[data-testid="stSidebar"] [data-baseweb="radio"] > div:first-of-type,
+[data-testid="stSidebar"] [data-baseweb="radio"] div[aria-hidden="true"],
+[data-testid="stSidebar"] [data-baseweb="radio"] input + div,
+[data-testid="stSidebar"] [data-baseweb="radio"] svg,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label > div:first-of-type {
     display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 /* Hover pulito per i bottoni con micro-spostamento laterale e bagliore ciano */
