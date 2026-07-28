@@ -1732,24 +1732,32 @@ st.sidebar.markdown("""
     font-weight: 700;
 }
 /* Stile base delle schede di navigazione */
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label,
 [data-testid="stSidebar"] [data-baseweb="radio"] {
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
     padding: 12px 16px !important;
     margin-bottom: 8px !important;
     border-radius: 10px !important;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
     position: relative !important;
     cursor: pointer !important;
-    background: rgba(255, 255, 255, 0.02) !important;
-    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    box-sizing: border-box !important;
 }
 
-/* Nascondi i cerchi/puntini nativi di Streamlit su tutte le versioni */
+/* Nascondi i cerchi/puntini nativi di Streamlit su tutte le versioni (Local & Cloud) */
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label > div:first-child,
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label > div:first-of-type,
 [data-testid="stSidebar"] [data-baseweb="radio"] > div:first-child,
 [data-testid="stSidebar"] [data-baseweb="radio"] > div:first-of-type,
 [data-testid="stSidebar"] [data-baseweb="radio"] div[aria-hidden="true"],
 [data-testid="stSidebar"] [data-baseweb="radio"] input + div,
-[data-testid="stSidebar"] [data-baseweb="radio"] svg,
-[data-testid="stSidebar"] [data-testid="stRadioButton"] label > div:first-of-type {
+[data-testid="stSidebar"] [aria-checked] > div:first-child,
+[data-testid="stSidebar"] [aria-checked] > div:first-of-type,
+[data-testid="stSidebar"] [data-baseweb="radio"] svg {
     display: none !important;
     width: 0 !important;
     height: 0 !important;
@@ -1759,59 +1767,40 @@ st.sidebar.markdown("""
     padding: 0 !important;
 }
 
+/* Testo delle schede */
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label p,
+[data-testid="stSidebar"] [data-baseweb="radio"] p {
+    color: #e2e8f0 !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
 /* Hover pulito per i bottoni con micro-spostamento laterale e bagliore ciano */
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label:hover,
 [data-testid="stSidebar"] [data-baseweb="radio"]:hover {
-    background-color: rgba(255, 255, 255, 0.06) !important;
-    border-color: rgba(0, 242, 254, 0.3) !important;
+    background-color: rgba(255, 255, 255, 0.07) !important;
+    border-color: rgba(0, 242, 254, 0.4) !important;
     transform: translateX(4px) !important;
 }
 
 /* Elemento attivo: Gradiente Ciano/Blu Neon */
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label:has(input:checked),
+[data-testid="stSidebar"] [data-baseweb="radio"]:has(input:checked),
 [data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) {
-    background: linear-gradient(135deg, rgba(79, 172, 254, 0.12) 0%, rgba(0, 242, 254, 0.12) 100%) !important;
-    border: 1px solid rgba(0, 242, 254, 0.4) !important;
+    background: linear-gradient(135deg, rgba(79, 172, 254, 0.16) 0%, rgba(0, 242, 254, 0.16) 100%) !important;
+    border: 1px solid rgba(0, 242, 254, 0.5) !important;
     border-left: 4px solid #00f2fe !important;
-    box-shadow: 0 0 15px rgba(0, 242, 254, 0.1) !important;
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.12) !important;
 }
+
+[data-testid="stSidebar"] [data-testid="stRadioButton"] label:has(input:checked) p,
+[data-testid="stSidebar"] [data-baseweb="radio"]:has(input:checked) p,
 [data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) p {
     color: #00f2fe !important;
     font-weight: 700 !important;
 }
-
-/* Spazio extra per far respirare i titoli */
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(1) { margin-top: 30px; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(2) { margin-top: 35px; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(3) { margin-top: 35px; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(4) { margin-top: 35px; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(5) { margin-top: 35px; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(6) { margin-top: 35px; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(7) { margin-top: 35px; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(8) { margin-top: 35px; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(9) { margin-top: 35px; }
-
-/* Formattazione Testo Titoli INIETTATI (non interagibili) */
-[data-testid="stSidebar"] div[role="radiogroup"] > label::before {
-    position: absolute;
-    top: -26px;
-    left: 2px;
-    font-size: 11px;
-    font-weight: 800;
-    color: #7b8084;
-    letter-spacing: 0.8px;
-    pointer-events: none; /* Rende il titolo insensibile al mouse! */
-    text-transform: uppercase;
-}
-
-/* Testi specifici dei titoli decorativi */
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(1)::before { content: '🏠 Overview'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(2)::before { content: '🧮 Calculators'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(3)::before { content: '📉 Analytics'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(4)::before { content: '🧩 Business Segments'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(5)::before { content: '💼 Portfolio'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(6)::before { content: '📰 Financial News'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(7)::before { content: '👑 Hedge Funds'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(8)::before { content: '🌍 Macro & Market'; }
-[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-child(9)::before { content: '🔍 Discovery'; }
 </style>
 <div class="sidebar-logo">
     <span class="intelligent">The Intelligent</span><br>
