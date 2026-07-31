@@ -2337,35 +2337,200 @@ if page_choice == "🏠 Home":
             st.plotly_chart(fig_heatmap, use_container_width=True)
 
 # ==========================================
-# PAGE 1: COMPOUND INTEREST
+# PAGE 1: COMPOUND INTEREST & PAC
 # ==========================================
 elif page_choice == "📈 Compound Interest":
-    st.title("💸 Compound Interest Calculator")
+    st.title("💸 Compound Interest & PAC Calculator")
+    st.markdown("<p style='color: #8A929A; font-size: 16px; margin-bottom:20px;'>Simulate the exponential growth of your portfolio with compound interest and recurring contributions (PAC / Dollar-Cost Averaging).</p>", unsafe_allow_html=True)
     st.divider()
-    col1, col2 = st.columns(2)
+
+    col1, col2, col3 = st.columns(3)
     with col1:
         initial_cap = st.number_input(
-            "Initial Investment ($)", min_value=0.0, value=1000.0)
-        rate = st.number_input("Annual Rate (%)", min_value=0.0, value=5.0)
+            "Initial Investment ($)", min_value=0.0, value=1000.0, step=500.0, help="Starting lump sum capital")
+        rate = st.number_input(
+            "Annual Rate of Return (%)", min_value=0.0, max_value=100.0, value=7.0, step=0.5, help="Expected annual interest or investment return rate")
     with col2:
-        years = int(st.number_input("Years", min_value=1, value=10))
-        freq = st.selectbox("Compounding Frequency", [
-                            "Annually", "Semi-annually", "Quarterly", "Monthly"])
-        freq_map = {"Annually": 1, "Semi-annually": 2,
-                    "Quarterly": 4, "Monthly": 12}
+        pac_amount = st.number_input(
+            "PAC Contribution ($)", min_value=0.0, value=200.0, step=50.0, help="Amount deposited regularly (PAC / DCA)")
+        pac_freq = st.selectbox(
+            "PAC Frequency",
+            ["Monthly", "Quarterly", "Semi-annually", "Annually"],
+            index=0,
+            help="How often periodic contributions are deposited"
+        )
+    with col3:
+        years = int(st.number_input(
+            "Investment Horizon (Years)", min_value=1, max_value=50, value=10, step=1))
+        comp_freq = st.selectbox(
+            "Compounding Frequency",
+            ["Monthly", "Quarterly", "Semi-annually", "Annually"],
+            index=0,
+            help="Frequency at which interest is compounded and added to the balance"
+        )
 
-    if st.button("🚀 Calculate", type="primary", use_container_width=True):
-        data = []
-        r_dec = rate / 100
-        for y in range(years + 1):
-            m = initial_cap * \
-                (1 + r_dec / freq_map[freq]) ** (freq_map[freq] * y)
-            data.append({"Year": y, "Total Capital ($)": round(m, 2)})
-        df = pd.DataFrame(data)
-        st.success(
-            f"**Final Total:** $ {df.iloc[-1]['Total Capital ($)']:,.2f}")
-        st.plotly_chart(px.area(df, x="Year", y="Total Capital ($)",
-                        markers=True), use_container_width=True)
+    with st.expander("⚙️ Advanced Settings (Contribution Timing)", expanded=False):
+        pac_timing = st.radio(
+            "Contribution Timing:",
+            ["End of Period (Posticipato)", "Beginning of Period (Anticipato)"],
+            index=0,
+            horizontal=True,
+            help="End of Period: contributions added after monthly interest accrues. Beginning of Period: contributions added before monthly interest accrues."
+        )
+
+    freq_map = {
+        "Monthly": 12,
+        "Quarterly": 4,
+        "Semi-annually": 2,
+        "Annually": 1
+    }
+
+    n_comp = freq_map[comp_freq]
+    n_contrib = freq_map[pac_freq]
+
+    r_dec = rate / 100.0
+    r_monthly = ((1.0 + r_dec / n_comp) ** (n_comp / 12.0)) - 1.0
+
+    m_contrib = 12 // n_contrib
+    is_beginning = "Beginning" in pac_timing
+
+    current_balance = float(initial_cap)
+    initial_invested = float(initial_cap)
+    pac_accumulated = 0.0
+
+    yearly_records = []
+    yearly_records.append({
+        "Year": 0,
+        "Initial Capital ($)": round(initial_invested, 2),
+        "PAC Contributions ($)": 0.0,
+        "Total Invested ($)": round(initial_invested, 2),
+        "Interest Earned ($)": 0.0,
+        "Total Balance ($)": round(current_balance, 2)
+    })
+
+    total_months = years * 12
+    for m in range(1, total_months + 1):
+        if is_beginning and ((m - 1) % m_contrib == 0):
+            current_balance += pac_amount
+            pac_accumulated += pac_amount
+
+        current_balance *= (1.0 + r_monthly)
+
+        if (not is_beginning) and (m % m_contrib == 0):
+            current_balance += pac_amount
+            pac_accumulated += pac_amount
+
+        if m % 12 == 0:
+            y = m // 12
+            tot_invested = initial_invested + pac_accumulated
+            interest_earned = max(0.0, current_balance - tot_invested)
+            yearly_records.append({
+                "Year": y,
+                "Initial Capital ($)": round(initial_invested, 2),
+                "PAC Contributions ($)": round(pac_accumulated, 2),
+                "Total Invested ($)": round(tot_invested, 2),
+                "Interest Earned ($)": round(interest_earned, 2),
+                "Total Balance ($)": round(current_balance, 2)
+            })
+
+    df_results = pd.DataFrame(yearly_records)
+
+    final_row = df_results.iloc[-1]
+    final_balance = final_row["Total Balance ($)"]
+    final_invested = final_row["Total Invested ($)"]
+    final_pac = final_row["PAC Contributions ($)"]
+    final_interest = final_row["Interest Earned ($)"]
+    roi_pct = ((final_balance - final_invested) / final_invested * 100.0) if final_invested > 0 else 0.0
+
+    st.divider()
+    st.markdown("### 📊 Wealth Accumulation Summary")
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("💰 Final Total Balance", f"${final_balance:,.2f}")
+    m2.metric("📥 Total Capital Invested", f"${final_invested:,.2f}")
+    m3.metric("🔄 Total PAC Deposited", f"${final_pac:,.2f}")
+    m4.metric("📈 Total Interest Earned", f"${final_interest:,.2f}", f"+{roi_pct:.1f}% ROI")
+    m5.metric("🎯 Capital Multiplier", f"{final_balance / final_invested:.2f}x" if final_invested > 0 else "N/A")
+
+    st.write("")
+    ch_col1, ch_col2 = st.columns([2, 1])
+    with ch_col1:
+        st.markdown("#### 📈 Portfolio Growth Over Time")
+        fig_growth = go.Figure()
+        fig_growth.add_trace(go.Scatter(
+            x=df_results["Year"],
+            y=df_results["Initial Capital ($)"],
+            name="Initial Capital",
+            mode="lines",
+            stackgroup="one",
+            line=dict(width=0.5, color="#2563eb"),
+            fillcolor="rgba(37, 99, 235, 0.4)"
+        ))
+        fig_growth.add_trace(go.Scatter(
+            x=df_results["Year"],
+            y=df_results["PAC Contributions ($)"],
+            name="PAC Contributions",
+            mode="lines",
+            stackgroup="one",
+            line=dict(width=0.5, color="#8b5cf6"),
+            fillcolor="rgba(139, 92, 246, 0.4)"
+        ))
+        fig_growth.add_trace(go.Scatter(
+            x=df_results["Year"],
+            y=df_results["Interest Earned ($)"],
+            name="Interest Earned",
+            mode="lines",
+            stackgroup="one",
+            line=dict(width=0.5, color="#10b981"),
+            fillcolor="rgba(16, 185, 129, 0.5)"
+        ))
+        fig_growth.update_layout(
+            xaxis_title="Years",
+            yaxis_title="Capital Value ($)",
+            hovermode="x unified",
+            margin=dict(l=20, r=20, t=30, b=20),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig_growth, use_container_width=True)
+
+    with ch_col2:
+        st.markdown("#### 🍰 Final Wealth Breakdown")
+        labels = ["Initial Capital", "PAC Contributions", "Interest Earned"]
+        values = [initial_cap, final_pac, final_interest]
+        colors = ["#2563eb", "#8b5cf6", "#10b981"]
+        fig_donut = go.Figure(data=[go.Pie(
+            labels=labels,
+            values=values,
+            hole=0.55,
+            marker=dict(colors=colors),
+            textinfo="percent+label",
+            hoverinfo="label+value+percent"
+        )])
+        fig_donut.update_layout(
+            showlegend=False,
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        st.plotly_chart(fig_donut, use_container_width=True)
+
+    st.divider()
+    st.markdown("### 📋 Annual Progression Schedule")
+
+    df_display = df_results.copy()
+    for col in ["Initial Capital ($)", "PAC Contributions ($)", "Total Invested ($)", "Interest Earned ($)", "Total Balance ($)"]:
+        df_display[col] = df_display[col].apply(lambda x: f"${x:,.2f}")
+
+    tab_col1, tab_col2 = st.columns([4, 1])
+    with tab_col1:
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
+    with tab_col2:
+        csv_data = df_results.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Export CSV",
+            data=csv_data,
+            file_name=f"compound_interest_pac_{years}y.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
 
 # ==========================================
 # PAGE 2: STOCK TRACKER
