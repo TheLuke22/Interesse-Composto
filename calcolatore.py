@@ -1146,6 +1146,31 @@ def fetch_watchlist_prices(ticker_tuple):
         return {}
 
 
+@st.cache_data(ttl=900)
+def fetch_portfolio_vs_voo_history(tickers_tuple):
+    """Fetch 5-year historical close prices for portfolio tickers + VOO."""
+    if not tickers_tuple:
+        return pd.DataFrame()
+    unique_tickers = [str(tk).strip().upper() for tk in tickers_tuple if tk]
+    if not unique_tickers:
+        return pd.DataFrame()
+    all_tickers = list(set(unique_tickers + ['VOO']))
+    try:
+        raw = yf.download(all_tickers, period="5y", progress=False, threads=True)
+        if raw.empty:
+            return pd.DataFrame()
+        if isinstance(raw.columns, pd.MultiIndex):
+            close_df = raw['Close']
+        else:
+            close_df = raw[['Close']].rename(columns={'Close': all_tickers[0]}) if len(all_tickers) == 1 else raw['Close']
+        if isinstance(close_df, pd.Series):
+            close_df = close_df.to_frame(name=all_tickers[0])
+        close_df = close_df.ffill().bfill()
+        return close_df
+    except Exception:
+        return pd.DataFrame()
+
+
 def fetch_fmp_quote(ticker, api_key):
     """Fetch real-time quote data from Financial Modeling Prep (stable API)."""
     result = {}
@@ -4096,6 +4121,182 @@ function doPost(e) {
                       f"${total_trailing_dividends:,.2f}")
         kpi_d3.metric("Annual Dividend Income (FWD)",
                       f"${total_forward_dividends:,.2f}")
+
+        # --- BENCHMARK COMPARISON VS VOO (S&P 500) ---
+        st.divider()
+        st.subheader("⚔️ Benchmark Performance: Portafoglio vs VOO (S&P 500)")
+        st.write(
+            "Confronta il rendimento storico del tuo portafoglio rispetto all'ETF **Vanguard S&P 500 (VOO)** nei vari orizzonti temporali."
+        )
+
+        portfolio_tickers_tuple = tuple(item['ticker'] for item in st.session_state['portfolio'])
+        history_df = fetch_portfolio_vs_voo_history(portfolio_tickers_tuple)
+
+        if not history_df.empty and 'VOO' in history_df.columns:
+            portfolio_val_series = pd.Series(0.0, index=history_df.index)
+            for item in st.session_state['portfolio']:
+                tk = str(item.get('ticker', '')).strip().upper()
+                try:
+                    sh = float(item.get('shares', 0.0))
+                except Exception:
+                    sh = 0.0
+                if tk in history_df.columns:
+                    portfolio_val_series += history_df[tk] * sh
+
+            bench_df = pd.DataFrame({
+                'Portafoglio': portfolio_val_series,
+                'VOO': history_df['VOO']
+            }, index=history_df.index)
+
+            last_date = bench_df.index[-1]
+
+            timeframes_cfg = [
+                ("1 Giorno", "1d", lambda d: d - pd.Timedelta(days=1)),
+                ("5 Giorni", "5d", lambda d: d - pd.Timedelta(days=5)),
+                ("1 Settimana", "1w", lambda d: d - pd.Timedelta(days=7)),
+                ("1 Mese", "1m", lambda d: d - pd.DateOffset(months=1)),
+                ("3 Mesi", "3m", lambda d: d - pd.DateOffset(months=3)),
+                ("6 Mesi", "6m", lambda d: d - pd.DateOffset(months=6)),
+                ("1 Anno", "1y", lambda d: d - pd.DateOffset(years=1)),
+                ("2 Anni", "2y", lambda d: d - pd.DateOffset(years=2)),
+                ("3 Anni", "3y", lambda d: d - pd.DateOffset(years=3)),
+                ("4 Anni", "4y", lambda d: d - pd.DateOffset(years=4)),
+                ("5 Anni", "5y", lambda d: d - pd.DateOffset(years=5)),
+            ]
+
+            results = []
+            for label, code, date_fn in timeframes_cfg:
+                if label == "1 Giorno" and len(bench_df) >= 2:
+                    start_date = bench_df.index[-2]
+                elif label == "5 Giorni" and len(bench_df) >= 6:
+                    start_date = bench_df.index[-6]
+                else:
+                    target_date = date_fn(last_date)
+                    sub = bench_df.loc[bench_df.index <= target_date]
+                    if not sub.empty:
+                        start_date = sub.index[-1]
+                    else:
+                        start_date = bench_df.index[0]
+
+                p_start = float(bench_df.loc[start_date, 'Portafoglio'])
+                p_end = float(bench_df.loc[last_date, 'Portafoglio'])
+                p_ret = ((p_end / p_start) - 1.0) * 100.0 if p_start > 0 else 0.0
+
+                v_start = float(bench_df.loc[start_date, 'VOO'])
+                v_end = float(bench_df.loc[last_date, 'VOO'])
+                v_ret = ((v_end / v_start) - 1.0) * 100.0 if v_start > 0 else 0.0
+
+                alpha = p_ret - v_ret
+
+                if abs(alpha) < 0.01:
+                    winner = "➖ Parità"
+                elif alpha > 0:
+                    winner = "🟢 Portafoglio"
+                else:
+                    winner = "🔵 VOO"
+
+                results.append({
+                    "Orizzonte": label,
+                    "Rendimento Portafoglio (%)": p_ret,
+                    "Rendimento VOO (%)": v_ret,
+                    "Alpha / Diff (%)": alpha,
+                    "Esito": winner,
+                    "_start_date": start_date
+                })
+
+            df_results = pd.DataFrame(results)
+
+            wins_portfolio = sum(1 for r in results if r["Alpha / Diff (%)"] > 0.01)
+            alpha_1y = next((r["Alpha / Diff (%)"] for r in results if r["Orizzonte"] == "1 Anno"), 0.0)
+            alpha_5y = next((r["Alpha / Diff (%)"] for r in results if r["Orizzonte"] == "5 Anni"), 0.0)
+
+            col_b1, col_b2, col_b3 = st.columns(3)
+            col_b1.metric("Orizzonti Vinti vs VOO", f"{wins_portfolio} / 11", help="Numero di timeframe in cui il tuo portafoglio supera VOO")
+            col_b2.metric("Alpha 1 Anno", f"{alpha_1y:+.2f}%", delta=f"{alpha_1y:+.2f}%")
+            col_b3.metric("Alpha 5 Anni", f"{alpha_5y:+.2f}%", delta=f"{alpha_5y:+.2f}%")
+
+            st.write("")
+            st.markdown("#### 📋 Tabella Comparativa Performance (11 Orizzonti)")
+
+            df_display = df_results[["Orizzonte", "Rendimento Portafoglio (%)", "Rendimento VOO (%)", "Alpha / Diff (%)", "Esito"]].copy()
+
+            st.dataframe(
+                df_display,
+                column_config={
+                    "Orizzonte": st.column_config.TextColumn("Orizzonte Temporale"),
+                    "Rendimento Portafoglio (%)": st.column_config.NumberColumn("Portafoglio (%)", format="%+.2f%%"),
+                    "Rendimento VOO (%)": st.column_config.NumberColumn("VOO (%)", format="%+.2f%%"),
+                    "Alpha / Diff (%)": st.column_config.NumberColumn("Alpha / Diff (%)", format="%+.2f%%"),
+                    "Esito": st.column_config.TextColumn("Esito Benchmark")
+                },
+                use_container_width=True,
+                hide_index=True
+            )
+
+            st.write("")
+            st.markdown("#### 📈 Grafico Comparativo Interattivo")
+
+            selected_tf = st.selectbox(
+                "Seleziona l'orizzonte temporale da visualizzare nel grafico:",
+                options=[r["Orizzonte"] for r in results] + ["Tutto (5 Anni)"],
+                index=6,
+                key="portfolio_voo_tf_select"
+            )
+
+            if selected_tf == "Tutto (5 Anni)":
+                tf_start_date = bench_df.index[0]
+            else:
+                tf_start_date = next((r["_start_date"] for r in results if r["Orizzonte"] == selected_tf), bench_df.index[0])
+
+            sliced_bench = bench_df.loc[bench_df.index >= tf_start_date].copy()
+            if not sliced_bench.empty and len(sliced_bench) >= 1:
+                norm_port = (sliced_bench['Portafoglio'] / sliced_bench['Portafoglio'].iloc[0]) * 100.0
+                norm_voo = (sliced_bench['VOO'] / sliced_bench['VOO'].iloc[0]) * 100.0
+
+                fig_comp = go.Figure()
+                fig_comp.add_trace(go.Scatter(
+                    x=sliced_bench.index,
+                    y=norm_port,
+                    name="Il tuo Portafoglio",
+                    line=dict(color="#27AE60", width=2.5)
+                ))
+                fig_comp.add_trace(go.Scatter(
+                    x=sliced_bench.index,
+                    y=norm_voo,
+                    name="VOO (S&P 500)",
+                    line=dict(color="#2E86C1", width=2.5, dash="dash")
+                ))
+
+                fig_comp.update_layout(
+                    title=f"Crescita Comparativa di $100 Investiti - Orizzonte: {selected_tf}",
+                    yaxis_title="Valore Normalizzato ($)",
+                    hovermode="x unified",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    margin=dict(l=0, r=0, t=40, b=0)
+                )
+                st.plotly_chart(fig_comp, use_container_width=True)
+
+            st.write("")
+            st.markdown("#### 📊 Sovraperformance / Alpha nei 11 Orizzonti (% vs VOO)")
+            colors_alpha = ['#27AE60' if a >= 0 else '#E74C3C' for a in df_results['Alpha / Diff (%)']]
+
+            fig_alpha = go.Figure(go.Bar(
+                x=df_results['Orizzonte'],
+                y=df_results['Alpha / Diff (%)'],
+                marker_color=colors_alpha,
+                text=[f"{a:+.2f}%" for a in df_results['Alpha / Diff (%)']],
+                textposition='auto'
+            ))
+            fig_alpha.update_layout(
+                yaxis_title="Alpha (%) vs VOO",
+                xaxis_title="Orizzonte Temporale",
+                margin=dict(l=0, r=0, t=30, b=0),
+                height=380
+            )
+            st.plotly_chart(fig_alpha, use_container_width=True)
+
+        else:
+            st.warning("Dati storici per VOO o portafoglio momentaneamente non disponibili.")
 
         st.divider()
         st.subheader("⚖️ Risk Concentration")
