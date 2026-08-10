@@ -364,6 +364,94 @@ def render_premium_screener_table(df):
     st.markdown(clean_html, unsafe_allow_html=True)
 
 
+def render_buffett_scorecard_ui(ticker: str):
+    """Renders the Warren Buffett 10-K Financial Statement Scorecard UI in Streamlit."""
+    res = qualtrim_engine.calculate_buffett_scorecard(ticker)
+    if "error" in res:
+        st.error(res["error"])
+        return
+    
+    score = res["score"]
+    pass_cnt = res["pass_count"]
+    tot_cnt = res["total_criteria"]
+    comp_name = res["company_name"]
+    
+    score_color = "#00FF7F" if score >= 75 else ("#FFD700" if score >= 50 else "#FF4500")
+    score_badge = "🏆 Azienda in pieno stile Warren Buffett (Fossato Competitivo Eccellente)" if score >= 75 else ("⚠️ Azienda parzialmente conforme ai criteri di Buffett" if score >= 50 else "❌ L'azienda non soddisfa i rigidi criteri di bilancio di Buffett")
+    
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%); padding: 24px; border-radius: 16px; border: 1px solid rgba(0, 242, 254, 0.25); margin-bottom: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.4);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div>
+                <h2 style="margin: 0; color: #FFFFFF; font-family: 'Outfit', sans-serif; font-size: 24px;">🧙‍♂️ Buffett 10-K Scorecard: <span style="color: #00F2FE;">{ticker}</span> ({comp_name})</h2>
+                <p style="color: #8A929A; margin-top: 6px; font-size: 14px;">Analisi automatica del bilancio sui 9 pilastri contabili di Warren Buffett & David Clark</p>
+            </div>
+            <div style="text-align: right; background: rgba(0,0,0,0.4); padding: 12px 24px; border-radius: 14px; border: 1px solid {score_color};">
+                <div style="font-size: 34px; font-weight: 800; color: {score_color}; font-family: 'Outfit', sans-serif;">{score} <span style="font-size: 16px; color: #8A929A;">/ 100</span></div>
+                <div style="font-size: 12px; font-weight: 700; color: #E2E8F0;">{pass_cnt} su {tot_cnt} Criteri Superati</div>
+            </div>
+        </div>
+        <div style="margin-top: 16px; padding: 10px 16px; background: rgba(255,255,255,0.04); border-radius: 8px; font-size: 13px; font-weight: 600; color: {score_color};">
+            {score_badge}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    categories = ["Conto Economico", "Stato Patrimoniale", "Rendiconto Finanziario"]
+    cat_icons = {"Conto Economico": "📊", "Stato Patrimoniale": "🏛️", "Rendiconto Finanziario": "💸"}
+    
+    cat_tabs = st.tabs([f"{cat_icons[cat]} {cat}" for cat in categories])
+    
+    for idx, cat in enumerate(categories):
+        with cat_tabs[idx]:
+            cat_criteria = [c for c in res["criteria"] if c["category"] == cat]
+            for c in cat_criteria:
+                status = c["status"]
+                bg_card = "rgba(0, 255, 127, 0.04)" if status == "PASS" else ("rgba(255, 215, 0, 0.04)" if status == "WARNING" else "rgba(255, 69, 0, 0.04)")
+                border_card = "#00FF7F" if status == "PASS" else ("#FFD700" if status == "WARNING" else "#FF4500")
+                badge_html = f"<span style='background: {border_card}; color: #000; font-weight: 800; padding: 3px 8px; border-radius: 6px; font-size: 11px;'>✅ PASS</span>" if status == "PASS" else (f"<span style='background: {border_card}; color: #000; font-weight: 800; padding: 3px 8px; border-radius: 6px; font-size: 11px;'>⚠️ WARNING</span>" if status == "WARNING" else f"<span style='background: {border_card}; color: #FFF; font-weight: 800; padding: 3px 8px; border-radius: 6px; font-size: 11px;'>❌ FAIL</span>")
+                
+                st.markdown(f"""
+                <div style="background: {bg_card}; border-left: 4px solid {border_card}; border-radius: 12px; padding: 16px; margin-bottom: 14px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                        <span style="font-weight: 700; font-size: 16px; color: #FFFFFF;">{c['name']}</span>
+                        {badge_html}
+                    </div>
+                    <div style="display: flex; gap: 24px; margin-top: 10px; flex-wrap: wrap;">
+                        <div><span style="color: #8A929A; font-size: 12px;">Valore Misurato:</span> <b style="color: #FFFFFF; font-size: 15px;">{c['value_str']}</b></div>
+                        <div><span style="color: #8A929A; font-size: 12px;">Target di Buffett:</span> <b style="color: #00F2FE; font-size: 15px;">{c['target']}</b></div>
+                    </div>
+                    <p style="margin-top: 10px; margin-bottom: 4px; color: #CBD5E1; font-size: 13px;"><i>{c['desc']}</i></p>
+                    <div style="font-size: 11px; color: #64748B; background: rgba(0,0,0,0.25); padding: 4px 10px; border-radius: 4px; display: inline-block; margin-top: 4px;">
+                        📌 <b>Dove trovarlo nel Bilancio 10-K:</b> {c['where']}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    raw = res.get("raw", {})
+    oe = raw.get("owner_earnings", 0) / 1e9
+    ni = raw.get("net_income", 0) / 1e9
+    capex_b = raw.get("capex", 0) / 1e9
+    ocf_b = (raw.get("owner_earnings", 0) + raw.get("capex", 0)) / 1e9
+    
+    st.divider()
+    st.subheader("💡 Owner Earnings (Utili del Proprietario) di Warren Buffett")
+    st.markdown(f"""
+    Warren Buffett ritiene che l'Utile Netto sia un dato contabile facilmente alterabile da regole di ammortamento e svalutazione. 
+    Per valutare il vero cash flow generato dall'azienda per gli azionisti, calcola gli **Owner Earnings**:
+    
+    <div style="background: rgba(0,242,254,0.08); border: 1px solid rgba(0,242,254,0.3); border-radius: 12px; padding: 18px; margin: 12px 0;">
+        <div style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #00F2FE; font-size: 15px;">
+            Owner Earnings = OCF (${ocf_b:.2f}B) - CapEx (${capex_b:.2f}B) = <span style="color: #00FF7F; font-size: 18px;">${oe:.2f} Miliardi</span>
+        </div>
+        <div style="margin-top: 10px; font-size: 13px; color: #E2E8F0;">
+            Confronto con Utile Netto Contabile: <b>${ni:.2f} Miliardi</b><br>
+            {'🟢 <b>Eccellente:</b> Il Cash Flow Reale supera l\'Utile Netto, a dimostrazione di una straordinaria conversione in cassa senza spese fantasma.' if oe >= ni else '⚠️ <b>Attenzione:</b> L\'Utile Netto supera il Cash Flow Reale a causa di ingenti spese in capitale fisso (CapEx) o capitale circolante.'}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
 def apply_premium_chart_theme(fig, is_sparkline=False):
     """
     Applica un tema Plotly scuro istituzionale, trasparente ed estremamente pulito.
@@ -2766,14 +2854,15 @@ elif page_choice == "📊 Stock Tracker":
                         mime="application/pdf"
                     )
 
-                tab_price, tab_divs, tab_mc, tab_holders, tab_fhealth, tab_funds, tab_dcf = st.tabs([
+                tab_price, tab_divs, tab_mc, tab_holders, tab_fhealth, tab_funds, tab_dcf, tab_buffett = st.tabs([
                     "📊 Price & Tech Analysis",
                     "💰 Dividends & Returns",
                     "🎲 Projections",
                     "🏦 Ownership",
                     "📈 Financial Health",
                     "📅 Fundamentals",
-                    "🧮 DCF Valuation"
+                    "🧮 DCF Valuation",
+                    "🧙‍♂️ Buffett Scorecard"
                 ])
 
                 # --- TAB 1: PRICE & TECH ---
@@ -3655,6 +3744,10 @@ elif page_choice == "📊 Stock Tracker":
                                 "Dati di cassa non sufficienti per il modello DCF.")
                     except Exception as e:
                         st.error("Errore nel calcolo DCF: " + str(e))
+
+                # --- TAB 8: BUFFETT SCORECARD ---
+                with tab_buffett:
+                    render_buffett_scorecard_ui(a_ticker)
 
 # ==========================================
 # PAGE 3: MY PORTFOLIO
@@ -5353,6 +5446,57 @@ elif page_choice == "👑 Super Investors":
         else:
             st.error(
                 "Dati portafoglio non ancora digitalizzati per questo investitore.")
+
+        if inv_name == "Warren Buffett":
+            st.divider()
+            st.subheader("📘 Guida Completa: Cosa Guarda Warren Buffett nel Bilancio (10-K)")
+            st.markdown("""
+            La filosofia di analisi fondamentale di Warren Buffett si concentra su **tre documenti contabili chiave** del report annuale 10-K per identificare aziende con un **fossato competitivo inattaccabile (Economic Moat)**.
+            """)
+            
+            guide_tab1, guide_tab2, guide_tab3, guide_tab4 = st.tabs([
+                "📊 Conto Economico",
+                "🏛️ Stato Patrimoniale",
+                "💸 Rendiconto Finanziario",
+                "🔍 Test Ticker dal Vivo"
+            ])
+            
+            with guide_tab1:
+                st.markdown("""
+                ### 📊 1. Conto Economico (Income Statement)
+                * **Margine di Profitto Lordo (Gross Margin) ≥ 40%**: Se l'azienda mantiene un margine lordo elevato e costante negli anni, significa che possiede un **pricing power** elevato e non deve ribassare i prezzi per competere.
+                * **Spese SG&A / Profitto Lordo < 30%**: Spese generali, amministrative e di vendita basse indicano un'azienda estremamente efficiente che non deve spendere fortune in pubblicità o burocrazia per vendere i propri prodotti.
+                * **Spese in R&D (Ricerca & Sviluppo) assenti o minime**: Aziende che richiedono continui investimenti colossali in R&D per non diventare obsolete (es. alcuni settori tech o biotech) corrono un rischio tecnologico elevato. Buffett preferisce prodotti stabili e senza tempo (es. Coca-Cola, See's Candies).
+                * **Ammortamenti / Profitto Lordo < 10%**: Bassi ammortamenti indicano che i macchinari/impianti non si usurano rapidamente, evitando continui reinvestimenti per mantenere l'attività.
+                * **Spese per Interessi / EBIT < 15%**: L'azienda non deve essere soffocata dagli interessi sul debito. Nei periodi di crisi o tassi alti, la maggior parte del reddito operativo resta intatta.
+                * **Margine di Utile Netto ≥ 20%**: Una percentuale elevata di ricavi si trasforma direttamente in utile netto disponibile per gli azionisti.
+                """)
+                
+            with guide_tab2:
+                st.markdown("""
+                ### 🏛️ 2. Stato Patrimoniale (Balance Sheet)
+                * **Cassa e Titoli a Breve Termine Elevati**: Una consistente riserva di liquidità permette all'azienda di superare le recessioni e cogliere opportunità di acquisizione a prezzo di saldo.
+                * **Debito a Lungo Termine / Utile Netto < 4 anni**: Buffett preferisce aziende che potrebbero estinguere **l'intero debito a lungo termine in meno di 3-4 anni** di utili netti correnti.
+                * **Utili Trattenuti (Retained Earnings) in Crescita**: Gli utili non distribuiti come dividendi devono incrementare il valore contabile dell'azienda anno dopo anno, generando un effetto *compounding*.
+                * **Return on Equity (ROE) ≥ 15-20%**: Un elevato rendimento sul capitale proprio dimostra la capacità del management di allocare efficientemente il capitale degli azionisti (senza abusare della leva finanziaria).
+                * **Azioni Proprie (Treasury Stock / Buybacks)**: Se l'azienda riacquista le proprie azioni a prezzi attraenti, aumenta la percentuale di possesso degli azionisti esistenti senza richiedere loro un singolo dollaro aggiuntivo.
+                """)
+                
+            with guide_tab3:
+                st.markdown("""
+                ### 💸 3. Rendiconto Finanziario (Cash Flow Statement)
+                * **CapEx / Utile Netto < 25% (max 50%)**: Le aziende eccezionali richiedono pochissimo capitale per mantenere gli impianti (*Capital Light*), lasciando enormi risorse finanziarie libere.
+                * **Owner Earnings (Utili del Proprietario)**: Formula di Buffett per il vero cash flow libero generato al netto del mantenimento dell'attività:
+                  $$\\text{Owner Earnings} = \\text{Cash Flow Operativo} - \\text{CapEx}$$
+                  Se gli *Owner Earnings* superano costantemente l'Utile Netto contabile, la qualità dei profitti è eccellente.
+                * **Free Cash Flow Consistente**: Flussi di cassa operativi stabili e prevedibili nel tempo, non soggetti a brusche contrazioni cicliche.
+                """)
+                
+            with guide_tab4:
+                st.markdown("### 🧪 Esegui lo Scorecard di Buffett su un Ticker a scelta")
+                b_ticker_input = st.text_input("Inserisci Ticker (es. KO, AAPL, MSFT, BAC, AXP):", value="KO", key="wb_guide_ticker_input").upper().strip()
+                if b_ticker_input:
+                    render_buffett_scorecard_ui(b_ticker_input)
 
     else:
         st.markdown("""

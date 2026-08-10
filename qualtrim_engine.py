@@ -1597,3 +1597,184 @@ def render_qualtrim_data_table(df: pd.DataFrame, title: str) -> str:
     </div>
     """
     return table_html
+
+
+# ==============================================================================
+# WARREN BUFFETT 10-K FINANCIAL STATEMENT SCORECARD ENGINE
+# ==============================================================================
+
+def calculate_buffett_scorecard(ticker: str) -> dict:
+    """
+    Evaluates a company's financial statements against Warren Buffett's 9 core 10-K criteria.
+    Calculates Gross Margins, SG&A / Gross Profit, D&A / Gross Profit, Interest / EBIT,
+    Net Margin, Long-Term Debt / Net Income, ROE, CapEx / Net Income, and Owner Earnings.
+    """
+    ticker_upper = ticker.upper()
+    try:
+        stock = yf.Ticker(ticker_upper)
+        info = stock.info or {}
+        
+        fin = stock.financials
+        bs = stock.balance_sheet
+        cf = stock.cashflow
+        
+        if fin is None or fin.empty or bs is None or bs.empty:
+            return {"error": f"Dati di bilancio non disponibili per {ticker_upper}"}
+        
+        latest_col = fin.columns[0]
+        
+        def get_val(df, keys, default=0.0):
+            if df is None or df.empty:
+                return default
+            for k in keys:
+                if k in df.index:
+                    val = df.loc[k, latest_col]
+                    if pd.notna(val):
+                        return float(val)
+            return default
+
+        # 1. Income Statement Metrics
+        total_rev = get_val(fin, ['Total Revenue', 'Operating Revenue'])
+        gross_profit = get_val(fin, ['Gross Profit'])
+        sga = get_val(fin, ['Selling General And Administration', 'Selling And Marketing Expense', 'General And Administrative Expense'])
+        depreciation = get_val(fin, ['Depreciation Amortization Depletion Income Statement', 'Reconciled Depreciation', 'Depreciation And Amortization In Income Statement'])
+        interest_exp = abs(get_val(fin, ['Interest Expense', 'Interest Expense Non Operating']))
+        ebit = get_val(fin, ['EBIT', 'Operating Income'])
+        net_income = get_val(fin, ['Net Income Common Stockholders', 'Net Income', 'Net Income From Continuing Operation Net Minority Interest'])
+
+        # 2. Balance Sheet Metrics
+        cash = get_val(bs, ['Cash Cash Equivalents And Short Term Investments', 'Cash And Cash Equivalents'])
+        long_term_debt = get_val(bs, ['Long Term Debt', 'Long Term Debt And Capital Lease Obligation', 'Total Debt'])
+        equity = get_val(bs, ['Stockholders Equity', 'Common Stock Equity'])
+        retained_earnings = get_val(bs, ['Retained Earnings'])
+
+        # 3. Cash Flow Metrics
+        ocf = get_val(cf, ['Operating Cash Flow', 'Cash Flow From Continuing Operating Activities'])
+        capex = abs(get_val(cf, ['Capital Expenditure', 'Net PPE Purchase And Sale', 'Purchase Of PPE']))
+        buybacks = abs(get_val(cf, ['Repurchase Of Capital Stock', 'Common Stock Payments']))
+        sbc = abs(get_val(cf, ['Stock Based Compensation']))
+
+        # Ratios Calculation
+        gross_margin = (gross_profit / total_rev * 100) if total_rev > 0 else (info.get('grossMargins', 0) * 100)
+        sga_to_gp = (sga / gross_profit * 100) if gross_profit > 0 else 0.0
+        da_to_gp = (depreciation / gross_profit * 100) if gross_profit > 0 else 0.0
+        interest_to_ebit = (interest_exp / abs(ebit) * 100) if ebit != 0 else 0.0
+        net_margin = (net_income / total_rev * 100) if total_rev > 0 else (info.get('profitMargins', 0) * 100)
+        
+        debt_to_ni = (long_term_debt / net_income) if net_income > 0 else 999.0
+        roe = (net_income / equity * 100) if equity > 0 else (info.get('returnOnEquity', 0) * 100)
+        capex_to_ni = (capex / net_income * 100) if net_income > 0 else 999.0
+        
+        owner_earnings = ocf - capex
+
+        # Criteria evaluation
+        criteria = [
+            {
+                "category": "Conto Economico",
+                "name": "Margine Lordo (Gross Margin)",
+                "target": "≥ 40%",
+                "value_str": f"{gross_margin:.1f}%",
+                "status": "PASS" if gross_margin >= 40 else ("WARNING" if gross_margin >= 25 else "FAIL"),
+                "desc": "Indica il potere di pricing e la presenza di un economic moat duraturo nel tempo.",
+                "where": "Conto Economico ➔ Gross Profit / Total Revenue"
+            },
+            {
+                "category": "Conto Economico",
+                "name": "Spese SG&A / Profitto Lordo",
+                "target": "< 30%",
+                "value_str": f"{sga_to_gp:.1f}%" if sga > 0 else "N/D (Ottimo)",
+                "status": "PASS" if (0 < sga_to_gp <= 30) or (sga == 0 and gross_margin >= 40) else ("WARNING" if sga_to_gp <= 50 else "FAIL"),
+                "desc": "Indica l'efficienza operativa. Aziende straordinarie non sprecano risorse per competere.",
+                "where": "Conto Economico ➔ Selling, General & Admin / Gross Profit"
+            },
+            {
+                "category": "Conto Economico",
+                "name": "Ammortamenti / Profitto Lordo",
+                "target": "< 10%",
+                "value_str": f"{da_to_gp:.1f}%" if depreciation > 0 else "< 5%",
+                "status": "PASS" if da_to_gp <= 10 else ("WARNING" if da_to_gp <= 20 else "FAIL"),
+                "desc": "Bassi ammortamenti indicano un'azienda a bassa intensità di capitale fisso.",
+                "where": "Conto Economico ➔ Depreciation & Amortization / Gross Profit"
+            },
+            {
+                "category": "Conto Economico",
+                "name": "Spese Interessi / EBIT",
+                "target": "< 15%",
+                "value_str": f"{interest_to_ebit:.1f}%" if interest_exp > 0 else "0.0% (Ottimo)",
+                "status": "PASS" if interest_to_ebit <= 15 else ("WARNING" if interest_to_ebit <= 30 else "FAIL"),
+                "desc": "Misura il peso del debito sui profitti operativi. Deve essere minimo per resistere alle crisi.",
+                "where": "Conto Economico ➔ Interest Expense / EBIT"
+            },
+            {
+                "category": "Conto Economico",
+                "name": "Margine di Utile Netto",
+                "target": "≥ 20%",
+                "value_str": f"{net_margin:.1f}%",
+                "status": "PASS" if net_margin >= 20 else ("WARNING" if net_margin >= 10 else "FAIL"),
+                "desc": "Quota di ricavi convertita in profitto netto puro per gli azionisti.",
+                "where": "Conto Economico ➔ Net Income / Total Revenue"
+            },
+            {
+                "category": "Stato Patrimoniale",
+                "name": "Debito a L.T. / Utile Netto",
+                "target": "< 4.0 anni",
+                "value_str": f"{debt_to_ni:.1f} anni" if debt_to_ni < 100 else "Elevato",
+                "status": "PASS" if debt_to_ni <= 4.0 else ("WARNING" if debt_to_ni <= 6.0 else "FAIL"),
+                "desc": "Anni di utili necessari per ripagare il debito a lungo termine. Buffett preferisce < 3-4 anni.",
+                "where": "Stato Patrimoniale ➔ Long Term Debt / Net Income"
+            },
+            {
+                "category": "Stato Patrimoniale",
+                "name": "Return on Equity (ROE)",
+                "target": "≥ 15%",
+                "value_str": f"{roe:.1f}%",
+                "status": "PASS" if roe >= 15 else ("WARNING" if roe >= 10 else "FAIL"),
+                "desc": "Rendimento sul capitale azionario. Buffett ricerca un ROE costantemente elevato.",
+                "where": "Stato Patrimoniale & C.E. ➔ Net Income / Shareholders' Equity"
+            },
+            {
+                "category": "Rendiconto Finanziario",
+                "name": "CapEx / Utile Netto",
+                "target": "< 25%",
+                "value_str": f"{capex_to_ni:.1f}%" if capex_to_ni < 500 else "N/D",
+                "status": "PASS" if capex_to_ni <= 25 else ("WARNING" if capex_to_ni <= 50 else "FAIL"),
+                "desc": "Quota di utile speso in impianti/macchinari. Se basso, l'utile diventa vero FCF.",
+                "where": "Rendiconto Finanziario ➔ Capital Expenditure / Net Income"
+            },
+            {
+                "category": "Rendiconto Finanziario",
+                "name": "Owner Earnings vs Utile Netto",
+                "target": "FCF ≥ Net Income",
+                "value_str": f"${owner_earnings/1e9:.2f}B vs ${net_income/1e9:.2f}B" if net_income > 0 else "N/D",
+                "status": "PASS" if owner_earnings >= net_income else ("WARNING" if owner_earnings >= 0.8 * net_income else "FAIL"),
+                "desc": "Formula di Buffett per gli Utili del Proprietario (Cash Flow Operativo - CapEx).",
+                "where": "Rendiconto Finanziario ➔ Cash Flow Operativo - CapEx"
+            }
+        ]
+
+        pass_count = sum(1 for c in criteria if c["status"] == "PASS")
+        total_criteria = len(criteria)
+        score = int((pass_count / total_criteria) * 100)
+
+        return {
+            "ticker": ticker_upper,
+            "company_name": info.get("shortName", ticker_upper),
+            "score": score,
+            "pass_count": pass_count,
+            "total_criteria": total_criteria,
+            "criteria": criteria,
+            "raw": {
+                "total_rev": total_rev,
+                "gross_profit": gross_profit,
+                "net_income": net_income,
+                "long_term_debt": long_term_debt,
+                "equity": equity,
+                "capex": capex,
+                "owner_earnings": owner_earnings,
+                "buybacks": buybacks
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error calculating Buffett Scorecard for {ticker}: {e}")
+        return {"error": f"Errore durante l'analisi di {ticker}: {str(e)}"}
+
