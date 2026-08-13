@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  the-intelligent-finance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: intelligent_finance_app
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      - ADMIN_SECRET_KEY=${ADMIN_SECRET_KEY:-admin2026}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - FMP_API_KEY=${FMP_API_KEY:-}
+      - STRIPE_PUBLIC_KEY=${STRIPE_PUBLIC_KEY:-}
+    volumes:
+      - ./portfolio.json:/app/portfolio.json
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

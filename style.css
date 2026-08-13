@@ -317,5 +317,39 @@
     filter: brightness(1.15);
 }
 
+/* Mobile-Responsive Table Wrapper */
+.table-responsive-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 1.5rem;
+    border-radius: 12px;
+}
 
+.table-responsive-wrapper::-webkit-scrollbar {
+    height: 6px;
+}
 
+.table-responsive-wrapper::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.table-responsive-wrapper::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+/* Scenario & Stress Test Card Utilities */
+.stress-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 20px;
+    transition: all 0.3s ease;
+}
+
+.stress-card:hover {
+    border-color: rgba(0, 242, 254, 0.3);
+    box-shadow: 0 8px 24px rgba(0, 242, 254, 0.08);
+    transform: translateY(-2px);
+}

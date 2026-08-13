@@ -20,18 +20,20 @@ BROKER_AFFILIATE_LINKS = {
     "Freedom24": "https://freedom24.com/?utm_source=business_segments"
 }
 
+import hmac
+
 def check_is_admin() -> bool:
     """
-    Verifica silenziosamente se l'utente corrente è l'Admin/Creatore.
-    Riconosce l'admin tramite il parametro URL segreto (es. ?admin=1 oppure ?key=admin2026).
-    Nessun pulsante o form visibile agli utenti!
+    Verifies securely if the current session belongs to the Admin.
+    Matches the secret key parameter (e.g. ?key=your_secret_admin_key) using constant-time comparison.
     """
     if "is_admin_authenticated" not in st.session_state:
         st.session_state["is_admin_authenticated"] = False
         
     try:
         qp = st.query_params
-        if qp.get("admin") == "1" or qp.get("key") == ADMIN_SECRET_KEY:
+        provided_key = str(qp.get("key", ""))
+        if provided_key and hmac.compare_digest(provided_key, ADMIN_SECRET_KEY):
             st.session_state["is_admin_authenticated"] = True
     except Exception:
         pass

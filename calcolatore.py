@@ -24,6 +24,9 @@ import time
 from functools import wraps
 import qualtrim_engine
 import monetization_engine
+from components.compound_ui import render_compound_interest_ui
+from components.dcf_ui import render_dcf_valuation_ui
+from components.portfolio_ui import render_portfolio_dividend_suite, render_portfolio_stress_test_suite
 
 # --- SYSTEM LOGGING CONFIGURATION ---
 logging.basicConfig(
@@ -435,7 +438,11 @@ def render_buffett_scorecard_ui(ticker: str):
     ocf_b = (raw.get("owner_earnings", 0) + raw.get("capex", 0)) / 1e9
     
     st.divider()
-    st.subheader("💡 Owner Earnings (Utili del Proprietario) di Warren Buffett")
+    if oe >= ni:
+        oe_comment = "🟢 <b>Eccellente:</b> Il Cash Flow Reale supera l'Utile Netto, a dimostrazione di una straordinaria conversione in cassa senza spese fantasma."
+    else:
+        oe_comment = "⚠️ <b>Attenzione:</b> L'Utile Netto supera il Cash Flow Reale a causa di ingenti spese in capitale fisso (CapEx) o capitale circolante."
+
     st.markdown(f"""
     Warren Buffett ritiene che l'Utile Netto sia un dato contabile facilmente alterabile da regole di ammortamento e svalutazione. 
     Per valutare il vero cash flow generato dall'azienda per gli azionisti, calcola gli **Owner Earnings**:
@@ -446,7 +453,7 @@ def render_buffett_scorecard_ui(ticker: str):
         </div>
         <div style="margin-top: 10px; font-size: 13px; color: #E2E8F0;">
             Confronto con Utile Netto Contabile: <b>${ni:.2f} Miliardi</b><br>
-            {'🟢 <b>Eccellente:</b> Il Cash Flow Reale supera l\'Utile Netto, a dimostrazione di una straordinaria conversione in cassa senza spese fantasma.' if oe >= ni else '⚠️ <b>Attenzione:</b> L\'Utile Netto supera il Cash Flow Reale a causa di ingenti spese in capitale fisso (CapEx) o capitale circolante.'}
+            {oe_comment}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -2453,196 +2460,8 @@ if page_choice == "🏠 Home":
 # PAGE 1: COMPOUND INTEREST & PAC
 # ==========================================
 elif page_choice == "📈 Compound Interest":
-    st.title("💸 Compound Interest & PAC Calculator")
-    st.markdown("<p style='color: #8A929A; font-size: 16px; margin-bottom:20px;'>Simulate the exponential growth of your portfolio with compound interest and recurring contributions (PAC / Dollar-Cost Averaging).</p>", unsafe_allow_html=True)
-    st.divider()
+    render_compound_interest_ui()
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        initial_cap = st.number_input(
-            "Initial Investment ($)", min_value=0.0, value=1000.0, step=500.0, help="Starting lump sum capital")
-        rate = st.number_input(
-            "Annual Rate of Return (%)", min_value=0.0, max_value=100.0, value=7.0, step=0.5, help="Expected annual interest or investment return rate")
-    with col2:
-        pac_amount = st.number_input(
-            "PAC Contribution ($)", min_value=0.0, value=200.0, step=50.0, help="Amount deposited regularly (PAC / DCA)")
-        pac_freq = st.selectbox(
-            "PAC Frequency",
-            ["Monthly", "Quarterly", "Semi-annually", "Annually"],
-            index=0,
-            help="How often periodic contributions are deposited"
-        )
-    with col3:
-        years = int(st.number_input(
-            "Investment Horizon (Years)", min_value=1, max_value=50, value=10, step=1))
-        comp_freq = st.selectbox(
-            "Compounding Frequency",
-            ["Monthly", "Quarterly", "Semi-annually", "Annually"],
-            index=0,
-            help="Frequency at which interest is compounded and added to the balance"
-        )
-
-    with st.expander("⚙️ Advanced Settings (Contribution Timing)", expanded=False):
-        pac_timing = st.radio(
-            "Contribution Timing:",
-            ["End of Period (Posticipato)", "Beginning of Period (Anticipato)"],
-            index=0,
-            horizontal=True,
-            help="End of Period: contributions added after monthly interest accrues. Beginning of Period: contributions added before monthly interest accrues."
-        )
-
-    freq_map = {
-        "Monthly": 12,
-        "Quarterly": 4,
-        "Semi-annually": 2,
-        "Annually": 1
-    }
-
-    n_comp = freq_map[comp_freq]
-    n_contrib = freq_map[pac_freq]
-
-    r_dec = rate / 100.0
-    r_monthly = ((1.0 + r_dec / n_comp) ** (n_comp / 12.0)) - 1.0
-
-    m_contrib = 12 // n_contrib
-    is_beginning = "Beginning" in pac_timing
-
-    current_balance = float(initial_cap)
-    initial_invested = float(initial_cap)
-    pac_accumulated = 0.0
-
-    yearly_records = []
-    yearly_records.append({
-        "Year": 0,
-        "Initial Capital ($)": round(initial_invested, 2),
-        "PAC Contributions ($)": 0.0,
-        "Total Invested ($)": round(initial_invested, 2),
-        "Interest Earned ($)": 0.0,
-        "Total Balance ($)": round(current_balance, 2)
-    })
-
-    total_months = years * 12
-    for m in range(1, total_months + 1):
-        if is_beginning and ((m - 1) % m_contrib == 0):
-            current_balance += pac_amount
-            pac_accumulated += pac_amount
-
-        current_balance *= (1.0 + r_monthly)
-
-        if (not is_beginning) and (m % m_contrib == 0):
-            current_balance += pac_amount
-            pac_accumulated += pac_amount
-
-        if m % 12 == 0:
-            y = m // 12
-            tot_invested = initial_invested + pac_accumulated
-            interest_earned = max(0.0, current_balance - tot_invested)
-            yearly_records.append({
-                "Year": y,
-                "Initial Capital ($)": round(initial_invested, 2),
-                "PAC Contributions ($)": round(pac_accumulated, 2),
-                "Total Invested ($)": round(tot_invested, 2),
-                "Interest Earned ($)": round(interest_earned, 2),
-                "Total Balance ($)": round(current_balance, 2)
-            })
-
-    df_results = pd.DataFrame(yearly_records)
-
-    final_row = df_results.iloc[-1]
-    final_balance = final_row["Total Balance ($)"]
-    final_invested = final_row["Total Invested ($)"]
-    final_pac = final_row["PAC Contributions ($)"]
-    final_interest = final_row["Interest Earned ($)"]
-    roi_pct = ((final_balance - final_invested) / final_invested * 100.0) if final_invested > 0 else 0.0
-
-    st.divider()
-    st.markdown("### 📊 Wealth Accumulation Summary")
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("💰 Final Total Balance", f"${final_balance:,.2f}")
-    m2.metric("📥 Total Capital Invested", f"${final_invested:,.2f}")
-    m3.metric("🔄 Total PAC Deposited", f"${final_pac:,.2f}")
-    m4.metric("📈 Total Interest Earned", f"${final_interest:,.2f}", f"+{roi_pct:.1f}% ROI")
-    m5.metric("🎯 Capital Multiplier", f"{final_balance / final_invested:.2f}x" if final_invested > 0 else "N/A")
-
-    st.write("")
-    ch_col1, ch_col2 = st.columns([2, 1])
-    with ch_col1:
-        st.markdown("#### 📈 Portfolio Growth Over Time")
-        fig_growth = go.Figure()
-        fig_growth.add_trace(go.Scatter(
-            x=df_results["Year"],
-            y=df_results["Initial Capital ($)"],
-            name="Initial Capital",
-            mode="lines",
-            stackgroup="one",
-            line=dict(width=0.5, color="#2563eb"),
-            fillcolor="rgba(37, 99, 235, 0.4)"
-        ))
-        fig_growth.add_trace(go.Scatter(
-            x=df_results["Year"],
-            y=df_results["PAC Contributions ($)"],
-            name="PAC Contributions",
-            mode="lines",
-            stackgroup="one",
-            line=dict(width=0.5, color="#8b5cf6"),
-            fillcolor="rgba(139, 92, 246, 0.4)"
-        ))
-        fig_growth.add_trace(go.Scatter(
-            x=df_results["Year"],
-            y=df_results["Interest Earned ($)"],
-            name="Interest Earned",
-            mode="lines",
-            stackgroup="one",
-            line=dict(width=0.5, color="#10b981"),
-            fillcolor="rgba(16, 185, 129, 0.5)"
-        ))
-        fig_growth.update_layout(
-            xaxis_title="Years",
-            yaxis_title="Capital Value ($)",
-            hovermode="x unified",
-            margin=dict(l=20, r=20, t=30, b=20),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        )
-        st.plotly_chart(fig_growth, use_container_width=True)
-
-    with ch_col2:
-        st.markdown("#### 🍰 Final Wealth Breakdown")
-        labels = ["Initial Capital", "PAC Contributions", "Interest Earned"]
-        values = [initial_cap, final_pac, final_interest]
-        colors = ["#2563eb", "#8b5cf6", "#10b981"]
-        fig_donut = go.Figure(data=[go.Pie(
-            labels=labels,
-            values=values,
-            hole=0.55,
-            marker=dict(colors=colors),
-            textinfo="percent+label",
-            hoverinfo="label+value+percent"
-        )])
-        fig_donut.update_layout(
-            showlegend=False,
-            margin=dict(l=10, r=10, t=30, b=10)
-        )
-        st.plotly_chart(fig_donut, use_container_width=True)
-
-    st.divider()
-    st.markdown("### 📋 Annual Progression Schedule")
-
-    df_display = df_results.copy()
-    for col in ["Initial Capital ($)", "PAC Contributions ($)", "Total Invested ($)", "Interest Earned ($)", "Total Balance ($)"]:
-        df_display[col] = df_display[col].apply(lambda x: f"${x:,.2f}")
-
-    tab_col1, tab_col2 = st.columns([4, 1])
-    with tab_col1:
-        st.dataframe(df_display, use_container_width=True, hide_index=True)
-    with tab_col2:
-        csv_data = df_results.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Export CSV",
-            data=csv_data,
-            file_name=f"compound_interest_pac_{years}y.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
 
 
 # ==========================================
@@ -3666,84 +3485,28 @@ elif page_choice == "📊 Stock Tracker":
 
                 # --- TAB 6: DCF VALUATION ---
                 with tab_dcf:
-                    st.subheader("🧮 Valutazione Fair Value (DCF Model)")
-                    st.write(
-                        "Calcolo a flussi di cassa scontati (Discounted Cash Flow).")
                     try:
                         inc_stmt_dcf, bal_sheet_dcf, cash_flow_dcf = fetch_financials(
                             a_ticker)
                         if not cash_flow_dcf.empty and 'Free Cash Flow' in cash_flow_dcf.index:
-                            recent_fcf = cash_flow_dcf.loc['Free Cash Flow'].dropna(
-                            ).iloc[0]
+                            recent_fcf = cash_flow_dcf.loc['Free Cash Flow'].dropna().iloc[0]
                         else:
-                            recent_fcf = info.get('freeCashflow')
+                            recent_fcf = info.get('freeCashflow') or 0.0
 
-                        shares_out_dcf = info.get('sharesOutstanding')
+                        shares_out_dcf = info.get('sharesOutstanding') or 0.0
+                        total_debt_dcf = info.get('totalDebt') or 0.0
+                        total_cash_dcf = info.get('totalCash') or 0.0
 
-                        if recent_fcf and shares_out_dcf and shares_out_dcf > 0:
-                            dcf_col1, dcf_col2 = st.columns(2)
-                            with dcf_col1:
-                                fcf_growth_rate = st.number_input(
-                                    "Tasso Crescita FCF (Anni 1-5) %", value=8.0) / 100
-                                discount_rate = st.number_input(
-                                    "Tasso di Sconto (WACC) %", value=10.0) / 100
-                            with dcf_col2:
-                                terminal_growth = st.number_input(
-                                    "Tasso Crescita Terminale %", value=2.5) / 100
-
-                            if discount_rate <= terminal_growth:
-                                st.error(
-                                    "⚠️ Errore Matematico: Il Tasso di Sconto (WACC) deve essere strettamente maggiore del Tasso Terminale per calcolare il Terminal Value.")
-                            else:
-                                if recent_fcf < 0:
-                                    st.warning(
-                                        "⚠️ L'azienda presenta un Free Cash Flow recente negativo. Il Fair Value risultante potrebbe essere negativo o inaffidabile, poiché il modello sconta perdite anziché profitti.")
-
-                                pv_fcf = sum(
-                                    [recent_fcf * (1 + fcf_growth_rate)**t / (1 + discount_rate)**t for t in range(1, 6)])
-                                fcf_year_5 = recent_fcf * \
-                                    (1 + fcf_growth_rate)**5
-                                tv = (fcf_year_5 * (1 + terminal_growth)
-                                      ) / (discount_rate - terminal_growth)
-                                pv_tv = tv / (1 + discount_rate)**5
-
-                                enterprise_value = pv_fcf + pv_tv
-                                total_debt = info.get('totalDebt') or 0
-                                total_cash = info.get('totalCash') or 0
-                                net_debt = total_debt - total_cash
-                                equity_value = enterprise_value - net_debt
-
-                                raw_fair_value = equity_value / shares_out_dcf
-                                fair_value = max(0, raw_fair_value)
-
-                                if raw_fair_value < 0:
-                                    st.info(
-                                        f"Nota: Il valore teorico del capitale netto sarebbe negativo (${raw_fair_value:,.2f}), limitato a zero nel calcolo.")
-
-                                margin_of_safety = (
-                                    (fair_value - rt_price) / fair_value) if fair_value > 0 else 0
-                                fv_col1, fv_col2 = st.columns(2)
-                                with fv_col1:
-                                    render_custom_metric(
-                                        "Fair Value per Azione Stimato", f"${fair_value:,.2f}", icon="🎯")
-                                with fv_col2:
-                                    render_custom_metric(
-                                        "Margine di Sicurezza", f"{margin_of_safety*100:.2f}%", icon="🛡️", is_positive=(margin_of_safety > 0))
-
-                                if fair_value == 0:
-                                    st.error(
-                                        "🔴 Il Fair Value teorico è zero (o inferiore) a causa di flussi di cassa negativi o debito eccessivo.")
-                                elif margin_of_safety > 0:
-                                    st.success(
-                                        "🟢 Il titolo sembra istituzionalmente **SOTTOVALUTATO** rispetto al Fair Value.")
-                                else:
-                                    st.error(
-                                        "🔴 Il titolo sembra istituzionalmente **SOPRAVVALUTATO** rispetto al Fair Value.")
-                        else:
-                            st.info(
-                                "Dati di cassa non sufficienti per il modello DCF.")
+                        render_dcf_valuation_ui(
+                            ticker=a_ticker,
+                            recent_fcf=recent_fcf,
+                            shares_outstanding=shares_out_dcf,
+                            current_price=rt_price,
+                            total_debt=total_debt_dcf,
+                            total_cash=total_cash_dcf
+                        )
                     except Exception as e:
-                        st.error("Errore nel calcolo DCF: " + str(e))
+                        st.error(f"Errore nel modulo DCF: {e}")
 
                 # --- TAB 8: BUFFETT SCORECARD ---
                 with tab_buffett:
@@ -4560,6 +4323,46 @@ function doPost(e) {
                         st.error("Errore nell'ottimizzazione: " + str(e))
         else:
             st.info("Aggiungi almeno 2 titoli per l'ottimizzazione.")
+
+        # --- DIVIDEND SUITE & HISTORICAL CRISIS STRESS TESTING ---
+        st.divider()
+        port_tab_div, port_tab_stress = st.tabs([
+            "❄️ Dividend Income & Yield on Cost",
+            "⚡ Macro Stress Testing & Historical Crashes"
+        ])
+        
+        with port_tab_div:
+            try:
+                curr_prices_map = {}
+                div_yields_map = {}
+                for itm in st.session_state['portfolio']:
+                    tk_sym = str(itm.get('ticker', '')).strip().upper()
+                    if tk_sym in prices_dict:
+                        curr_prices_map[tk_sym] = float(prices_dict[tk_sym])
+                    tk_info = fetch_stock_info(tk_sym)
+                    dy = tk_info.get('dividendYield') or 0.0
+                    if dy > 0 and dy < 1.0:
+                        dy *= 100.0
+                    div_yields_map[tk_sym] = float(dy)
+                
+                render_portfolio_dividend_suite(
+                    holdings=st.session_state['portfolio'],
+                    current_prices=curr_prices_map,
+                    dividend_yields=div_yields_map
+                )
+            except Exception as e:
+                st.warning(f"Unable to compute dividend projections: {e}")
+
+        with port_tab_stress:
+            try:
+                stress_df_input = pd.DataFrame({
+                    "Ticker": df_portfolio["Ticker"],
+                    "Value ($)": df_portfolio["Valore Totale ($)"],
+                    "Sector": [fetch_stock_info(t).get("sector", "Technology") for t in df_portfolio["Ticker"]]
+                })
+                render_portfolio_stress_test_suite(stress_df_input, total_portfolio_value)
+            except Exception as e:
+                st.warning(f"Unable to run stress test simulation: {e}")
 
         # --- AI PORTFOLIO ANALYSIS ---
         st.divider()
