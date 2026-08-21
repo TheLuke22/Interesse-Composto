@@ -16,13 +16,12 @@ def test_extract_consensus_pe_data_mocked():
     mock_info = {
         'shortName': 'Eli Lilly and Company',
         'longName': 'Eli Lilly and Company',
-        'trailingEps': 24.20,
-        'trailingPE': 51.40,
+        'trailingEps': 24.21,
         'currentPrice': 1244.0,
         'epsCurrentYear': 36.73,
-        'forwardEps': 47.23,
+        'forwardEps': 47.33,
         'pegRatio': 1.61,
-        'forwardPE': 26.35,
+        'forwardPE': 26.28,
         'marketCap': 1.11e12,
         'totalDebt': 54.91e9,
         'totalCash': 8.95e9,
@@ -39,7 +38,7 @@ def test_extract_consensus_pe_data_mocked():
     # Check PE rows
     actual_row = data["pe_rows"][0]
     assert actual_row["is_actual"] is True
-    assert actual_row["pe"] == 51.40
+    assert abs(actual_row["pe"] - 51.38) < 0.2
 
     # Check Capital Structure
     cs = {item["item"]: item["value_str"] for item in data["capital_structure"]}
