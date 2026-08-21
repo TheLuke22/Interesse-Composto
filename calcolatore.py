@@ -3069,14 +3069,17 @@ elif page_choice == "📊 Stock Tracker":
 
                 # --- TAB 3: FORWARD P/E & CONSENSUS ---
                 with tab_consensus:
-                    consensus_data = fetch_consensus_data(a_ticker, rt_price)
-                    render_consensus_pe_section(
-                        ticker=a_ticker,
-                        info=info,
-                        stock_obj=stock,
-                        current_price=rt_price,
-                        precalculated_data=consensus_data
-                    )
+                    try:
+                        consensus_data = fetch_consensus_data(a_ticker, rt_price)
+                        render_consensus_pe_section(
+                            ticker=a_ticker,
+                            info=info,
+                            stock_obj=stock,
+                            current_price=rt_price,
+                            precalculated_data=consensus_data
+                        )
+                    except Exception as e_consensus:
+                        st.info(f"Consensus forecast data temporarily unavailable for {a_ticker}.")
 
                 # --- TAB 4: PROJECTIONS ---
                 with tab_mc:

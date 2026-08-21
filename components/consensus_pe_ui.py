@@ -15,7 +15,9 @@ def render_consensus_pe_section(
     info: Optional[Dict[str, Any]] = None,
     stock_obj: Optional[Any] = None,
     current_price: Optional[float] = None,
-    precalculated_data: Optional[Dict[str, Any]] = None
+    precalculated_data: Optional[Dict[str, Any]] = None,
+    *args,
+    **kwargs
 ):
     """
     Renders institutional section showing:
@@ -27,18 +29,21 @@ def render_consensus_pe_section(
     3. Interactive Valuation & EPS Trajectory Chart + Target Multiple Simulator
     """
     info = info or {}
-    ticker = ticker.upper().strip()
+    ticker = str(ticker).upper().strip()
 
     # Extract clean consensus data (use precalculated cached data if available)
-    if precalculated_data is not None:
+    if precalculated_data is not None and isinstance(precalculated_data, dict) and precalculated_data.get("is_valid"):
         data = precalculated_data
     else:
-        data = extract_consensus_pe_data(
-            ticker=ticker,
-            info=info,
-            stock_obj=stock_obj,
-            current_price=current_price
-        )
+        try:
+            data = extract_consensus_pe_data(
+                ticker=ticker,
+                info=info,
+                stock_obj=stock_obj,
+                current_price=current_price
+            )
+        except Exception:
+            data = {}
 
     if not data or not data.get("is_valid"):
         st.warning(f"⚠️ Consensus forecast and P/E data is not currently available for **{ticker}**.")
@@ -48,15 +53,15 @@ def render_consensus_pe_section(
     pe_rows = data.get("pe_rows", [])
     growth_rows = data.get("growth_rows", [])
     capital_structure = data.get("capital_structure", [])
-    price = data.get("current_price", 0.0)
+    price = data.get("current_price", 0.0) or 0.0
 
     # =========================================================
     # CARD 1: {TICKER} PE / PEG RATIO
     # =========================================================
     pe_rows_list = []
     for row in pe_rows:
-        label = row["label"]
-        pe_val = f"{row['pe']:.2f}"
+        label = row.get("label", "")
+        pe_val = f"{row['pe']:.2f}" if row.get("pe") is not None else "-"
         pe_rows_list.append(
             f'<div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #edf2f7; font-size:14.5px;">'
             f'<span style="font-weight:700; color:#111827;">{label}</span>'
@@ -67,8 +72,8 @@ def render_consensus_pe_section(
 
     growth_rows_list = []
     for row in growth_rows:
-        period = row["period"]
-        growth_str = row["growth_str"]
+        period = row.get("period", "")
+        growth_str = row.get("growth_str", "-")
         growth_rows_list.append(
             f'<div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #edf2f7; font-size:14.5px;">'
             f'<span style="font-weight:700; color:#111827;">{period}</span>'
@@ -95,8 +100,8 @@ def render_consensus_pe_section(
     # =========================================================
     cap_rows_list = []
     for row in capital_structure:
-        item = row["item"]
-        val_str = row["value_str"]
+        item = row.get("item", "")
+        val_str = row.get("value_str", "-")
         cap_rows_list.append(
             f'<div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #edf2f7; font-size:14.5px;">'
             f'<span style="font-weight:700; color:#111827;">{item}</span>'
@@ -127,10 +132,10 @@ def render_consensus_pe_section(
             chart_pe = []
 
             for r in pe_rows:
-                if r.get("eps") is not None:
-                    chart_years.append(str(r["year"]))
-                    chart_eps.append(r["eps"])
-                    chart_pe.append(r["pe"])
+                if r.get("eps") is not None and r.get("pe") is not None:
+                    chart_years.append(str(r.get("year", "")))
+                    chart_eps.append(float(r["eps"]))
+                    chart_pe.append(float(r["pe"]))
 
             if chart_years:
                 fig = go.Figure()
@@ -202,7 +207,7 @@ def render_consensus_pe_section(
             )
 
             # Filter future estimated years
-            future_pe_rows = [r for r in pe_rows if not r.get("is_actual") and r.get("eps")]
+            future_pe_rows = [r for r in pe_rows if not r.get("is_actual") and r.get("eps") is not None]
 
             if future_pe_rows:
                 sim_col1, sim_col2 = st.columns(2)
@@ -213,12 +218,15 @@ def render_consensus_pe_section(
                         index=len(future_pe_rows) - 1,
                         key=f"sim_year_{ticker}"
                     )
-                selected_row = next(r for r in future_pe_rows if r["year"] == target_year_choice)
-                projected_eps = selected_row["eps"]
+                selected_row = next((r for r in future_pe_rows if r.get("year") == target_year_choice), future_pe_rows[-1])
+                projected_eps = float(selected_row.get("eps", 0.0) or 0.0)
 
                 with sim_col2:
-                    current_pe_bench = selected_row.get("pe", 25.0)
-                    default_sim_pe = round(current_pe_bench, 1)
+                    current_pe_bench = selected_row.get("pe") or 25.0
+                    try:
+                        default_sim_pe = round(float(current_pe_bench), 1)
+                    except (ValueError, TypeError):
+                        default_sim_pe = 25.0
                     target_pe_mult = st.slider(
                         f"Assumed Exit P/E Multiple in {target_year_choice}",
                         min_value=5.0,
@@ -230,7 +238,7 @@ def render_consensus_pe_section(
 
                 # Calculations
                 implied_target_price = projected_eps * target_pe_mult
-                cur_year = pe_rows[0]["year"] if pe_rows else target_year_choice - 1
+                cur_year = pe_rows[0].get("year", target_year_choice - 1) if pe_rows else (target_year_choice - 1)
                 n_years = max(1, target_year_choice - cur_year)
                 
                 if price > 0:
