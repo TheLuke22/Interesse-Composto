@@ -7,8 +7,7 @@ and Capital Structure matching institutional layout.
 from typing import Dict, Any, Optional
 import streamlit as st
 import plotly.graph_objects as go
-import pandas as pd
-from analytics.consensus_pe import extract_consensus_pe_data, format_currency_large
+from analytics.consensus_pe import extract_consensus_pe_data
 
 
 def render_consensus_pe_section(
@@ -50,63 +49,64 @@ def render_consensus_pe_section(
     # =========================================================
     # CARD 1: {TICKER} PE / PEG RATIO
     # =========================================================
-    pe_rows_html = ""
+    pe_rows_list = []
     for row in pe_rows:
         label = row["label"]
         pe_val = f"{row['pe']:.2f}"
-        pe_rows_html += f"""
-        <div class="consensus-row">
-            <div class="consensus-label">{label}</div>
-            <div class="consensus-value">{pe_val}</div>
-        </div>
-        """
+        pe_rows_list.append(
+            f'<div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #edf2f7; font-size:14.5px;">'
+            f'<span style="font-weight:700; color:#111827;">{label}</span>'
+            f'<span style="font-weight:500; color:#111827; text-align:right; font-family:\'JetBrains Mono\', monospace, sans-serif; font-size:14.5px;">{pe_val}</span>'
+            f'</div>'
+        )
+    pe_rows_html = "".join(pe_rows_list)
 
-    growth_rows_html = ""
+    growth_rows_list = []
     for row in growth_rows:
         period = row["period"]
         growth_str = row["growth_str"]
-        growth_rows_html += f"""
-        <div class="consensus-row">
-            <div class="consensus-label">{period}</div>
-            <div class="consensus-value">{growth_str}</div>
-        </div>
-        """
+        growth_rows_list.append(
+            f'<div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #edf2f7; font-size:14.5px;">'
+            f'<span style="font-weight:700; color:#111827;">{period}</span>'
+            f'<span style="font-weight:500; color:#111827; text-align:right; font-family:\'JetBrains Mono\', monospace, sans-serif; font-size:14.5px;">{growth_str}</span>'
+            f'</div>'
+        )
+    growth_rows_html = "".join(growth_rows_list)
 
-    card_1_html = f"""
-    <div class="consensus-card-container">
-        <div class="consensus-main-title">{ticker} PE / PEG RATIO</div>
-        <div class="consensus-subtext">View {company_name} ({ticker}) current and estimated P/E ratio data provided by Wall Street Consensus & Seeking Alpha models.</div>
-        
-        <div class="consensus-section-title">Price/Earnings Ratio</div>
-        {pe_rows_html}
-        
-        <div class="consensus-section-title" style="margin-top: 28px;">Consensus EPS Estimate Growth Rate</div>
-        {growth_rows_html}
-    </div>
-    """
+    card_1_html = (
+        f'<div style="background:#ffffff; color:#111827; border-radius:12px; padding:26px 30px; margin-bottom:20px; box-shadow:0 2px 12px rgba(0,0,0,0.06); border:1px solid #e5e7eb; font-family:\'Inter\', -apple-system, sans-serif;">'
+        f'<div style="font-size:15px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; color:#111827; margin-bottom:6px;">{ticker} PE / PEG RATIO</div>'
+        f'<div style="font-size:14px; color:#6b7280; margin-bottom:20px; line-height:1.4;">View {company_name} ({ticker}) current and estimated P/E ratio data provided by Wall Street Consensus & Seeking Alpha models.</div>'
+        f'<div style="font-size:16px; font-weight:700; color:#111827; margin-top:20px; margin-bottom:8px;">Price/Earnings Ratio</div>'
+        f'{pe_rows_html}'
+        f'<div style="font-size:16px; font-weight:700; color:#111827; margin-top:24px; margin-bottom:8px;">Consensus EPS Estimate Growth Rate</div>'
+        f'{growth_rows_html}'
+        f'</div>'
+    )
 
     st.markdown(card_1_html, unsafe_allow_html=True)
 
     # =========================================================
     # CARD 2: CAPITAL STRUCTURE
     # =========================================================
-    cap_rows_html = ""
+    cap_rows_list = []
     for row in capital_structure:
         item = row["item"]
         val_str = row["value_str"]
-        cap_rows_html += f"""
-        <div class="consensus-row">
-            <div class="consensus-label">{item}</div>
-            <div class="consensus-value">{val_str}</div>
-        </div>
-        """
+        cap_rows_list.append(
+            f'<div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #edf2f7; font-size:14.5px;">'
+            f'<span style="font-weight:700; color:#111827;">{item}</span>'
+            f'<span style="font-weight:500; color:#111827; text-align:right; font-family:\'JetBrains Mono\', monospace, sans-serif; font-size:14.5px;">{val_str}</span>'
+            f'</div>'
+        )
+    cap_rows_html = "".join(cap_rows_list)
 
-    card_2_html = f"""
-    <div class="consensus-card-container">
-        <div class="consensus-main-title">CAPITAL STRUCTURE</div>
-        {cap_rows_html}
-    </div>
-    """
+    card_2_html = (
+        f'<div style="background:#ffffff; color:#111827; border-radius:12px; padding:26px 30px; margin-bottom:20px; box-shadow:0 2px 12px rgba(0,0,0,0.06); border:1px solid #e5e7eb; font-family:\'Inter\', -apple-system, sans-serif;">'
+        f'<div style="font-size:15px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; color:#111827; margin-bottom:12px;">CAPITAL STRUCTURE</div>'
+        f'{cap_rows_html}'
+        f'</div>'
+    )
 
     st.markdown(card_2_html, unsafe_allow_html=True)
 
@@ -121,14 +121,12 @@ def render_consensus_pe_section(
             chart_years = []
             chart_eps = []
             chart_pe = []
-            chart_labels = []
 
             for r in pe_rows:
                 if r.get("eps") is not None:
                     chart_years.append(str(r["year"]))
                     chart_eps.append(r["eps"])
                     chart_pe.append(r["pe"])
-                    chart_labels.append(r["label"])
 
             if chart_years:
                 fig = go.Figure()
