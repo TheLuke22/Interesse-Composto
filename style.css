@@ -353,3 +353,115 @@
     box-shadow: 0 8px 24px rgba(0, 242, 254, 0.08);
     transform: translateY(-2px);
 }
+
+/* =========================================================
+   CONSENSUS ESTIMATES & CAPITAL STRUCTURE CARD STYLES
+   ========================================================= */
+.consensus-card-container {
+    background: #ffffff;
+    color: #1a1a1a;
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e5e7eb;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Dark mode override if parent theme is dark */
+[data-theme="dark"] .consensus-card-container,
+.stApp.dark-theme .consensus-card-container {
+    background: #111827;
+    color: #f3f4f6;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.consensus-main-title {
+    font-size: 15px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #2d3748;
+    margin-bottom: 8px;
+    font-family: 'Outfit', 'Inter', sans-serif;
+}
+
+[data-theme="dark"] .consensus-main-title,
+.stApp.dark-theme .consensus-main-title {
+    color: #e2e8f0;
+}
+
+.consensus-subtext {
+    font-size: 15px;
+    color: #6b7280;
+    margin-bottom: 26px;
+    line-height: 1.5;
+}
+
+[data-theme="dark"] .consensus-subtext,
+.stApp.dark-theme .consensus-subtext {
+    color: #9ca3af;
+}
+
+.consensus-section-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #111827;
+    margin-top: 24px;
+    margin-bottom: 14px;
+    font-family: 'Inter', sans-serif;
+}
+
+[data-theme="dark"] .consensus-section-title,
+.stApp.dark-theme .consensus-section-title {
+    color: #f9fafb;
+}
+
+.consensus-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 13px 0;
+    border-bottom: 1px solid #edf2f7;
+    font-size: 14.5px;
+}
+
+[data-theme="dark"] .consensus-row,
+.stApp.dark-theme .consensus-row {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.consensus-row:last-child {
+    border-bottom: none;
+}
+
+.consensus-label {
+    font-weight: 700;
+    color: #1f2937;
+}
+
+[data-theme="dark"] .consensus-label,
+.stApp.dark-theme .consensus-label {
+    color: #f3f4f6;
+}
+
+.consensus-value {
+    font-weight: 500;
+    color: #1f2937;
+    text-align: right;
+    font-family: 'JetBrains Mono', 'Inter', monospace;
+    font-size: 14.5px;
+}
+
+[data-theme="dark"] .consensus-value,
+.stApp.dark-theme .consensus-value {
+    color: #f3f4f6;
+}
+
+.consensus-value-highlight {
+    font-weight: 700;
+    color: #0284c7;
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+}

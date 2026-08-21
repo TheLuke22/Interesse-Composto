@@ -27,6 +27,7 @@ import monetization_engine
 from components.compound_ui import render_compound_interest_ui
 from components.dcf_ui import render_dcf_valuation_ui
 from components.portfolio_ui import render_portfolio_dividend_suite, render_portfolio_stress_test_suite
+from components.consensus_pe_ui import render_consensus_pe_section
 
 # --- SYSTEM LOGGING CONFIGURATION ---
 logging.basicConfig(
@@ -2655,9 +2656,10 @@ elif page_choice == "📊 Stock Tracker":
                         mime="application/pdf"
                     )
 
-                tab_price, tab_divs, tab_mc, tab_holders, tab_fhealth, tab_funds, tab_dcf, tab_buffett = st.tabs([
+                tab_price, tab_divs, tab_consensus, tab_mc, tab_holders, tab_fhealth, tab_funds, tab_dcf, tab_buffett = st.tabs([
                     "📊 Price & Tech Analysis",
                     "💰 Dividends & Returns",
+                    "🎯 Forward P/E & Consensus",
                     "🎲 Projections",
                     "🏦 Ownership",
                     "📈 Financial Health",
@@ -2917,7 +2919,16 @@ elif page_choice == "📊 Stock Tracker":
                         st.info(
                             "Questo titolo non ha distribuito dividendi nel periodo selezionato, quindi non ci sono riacquisti da mostrare.")
 
-                # --- TAB 3: PROJECTIONS ---
+                # --- TAB 3: FORWARD P/E & CONSENSUS ---
+                with tab_consensus:
+                    render_consensus_pe_section(
+                        ticker=a_ticker,
+                        info=info,
+                        stock_obj=stock,
+                        current_price=rt_price
+                    )
+
+                # --- TAB 4: PROJECTIONS ---
                 with tab_mc:
                     st.subheader("🎲 Monte Carlo Simulation (5Y Projection)")
                     st.write(

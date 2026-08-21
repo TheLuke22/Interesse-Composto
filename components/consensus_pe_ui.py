@@ -1,0 +1,247 @@
+"""
+Consensus P/E and Capital Structure UI Component
+Renders the Estimated P/E over the years, Consensus EPS Growth Rates,
+and Capital Structure matching institutional layout.
+"""
+
+from typing import Dict, Any, Optional
+import streamlit as st
+import plotly.graph_objects as go
+import pandas as pd
+from analytics.consensus_pe import extract_consensus_pe_data, format_currency_large
+
+
+def render_consensus_pe_section(
+    ticker: str,
+    info: Optional[Dict[str, Any]] = None,
+    stock_obj: Optional[Any] = None,
+    current_price: Optional[float] = None
+):
+    """
+    Renders institutional section showing:
+    1. Card 1: {TICKER} PE / PEG RATIO
+       - Price/Earnings Ratio (Actual and Forward Estimated across years)
+       - Consensus EPS Estimate Growth Rate (% by year)
+    2. Card 2: CAPITAL STRUCTURE
+       - Market Cap, Total Debt, Cash, Other, Enterprise Value
+    3. Interactive Valuation & EPS Trajectory Chart + Target Multiple Simulator
+    """
+    info = info or {}
+    ticker = ticker.upper().strip()
+
+    # Extract clean consensus data
+    data = extract_consensus_pe_data(
+        ticker=ticker,
+        info=info,
+        stock_obj=stock_obj,
+        current_price=current_price
+    )
+
+    if not data or not data.get("is_valid"):
+        st.warning(f"⚠️ Consensus forecast and P/E data is not currently available for **{ticker}**.")
+        return
+
+    company_name = data.get("company_name", ticker)
+    pe_rows = data.get("pe_rows", [])
+    growth_rows = data.get("growth_rows", [])
+    capital_structure = data.get("capital_structure", [])
+    price = data.get("current_price", 0.0)
+
+    # =========================================================
+    # CARD 1: {TICKER} PE / PEG RATIO
+    # =========================================================
+    pe_rows_html = ""
+    for row in pe_rows:
+        label = row["label"]
+        pe_val = f"{row['pe']:.2f}"
+        pe_rows_html += f"""
+        <div class="consensus-row">
+            <div class="consensus-label">{label}</div>
+            <div class="consensus-value">{pe_val}</div>
+        </div>
+        """
+
+    growth_rows_html = ""
+    for row in growth_rows:
+        period = row["period"]
+        growth_str = row["growth_str"]
+        growth_rows_html += f"""
+        <div class="consensus-row">
+            <div class="consensus-label">{period}</div>
+            <div class="consensus-value">{growth_str}</div>
+        </div>
+        """
+
+    card_1_html = f"""
+    <div class="consensus-card-container">
+        <div class="consensus-main-title">{ticker} PE / PEG RATIO</div>
+        <div class="consensus-subtext">View {company_name} ({ticker}) current and estimated P/E ratio data provided by Wall Street Consensus & Seeking Alpha models.</div>
+        
+        <div class="consensus-section-title">Price/Earnings Ratio</div>
+        {pe_rows_html}
+        
+        <div class="consensus-section-title" style="margin-top: 28px;">Consensus EPS Estimate Growth Rate</div>
+        {growth_rows_html}
+    </div>
+    """
+
+    st.markdown(card_1_html, unsafe_allow_html=True)
+
+    # =========================================================
+    # CARD 2: CAPITAL STRUCTURE
+    # =========================================================
+    cap_rows_html = ""
+    for row in capital_structure:
+        item = row["item"]
+        val_str = row["value_str"]
+        cap_rows_html += f"""
+        <div class="consensus-row">
+            <div class="consensus-label">{item}</div>
+            <div class="consensus-value">{val_str}</div>
+        </div>
+        """
+
+    card_2_html = f"""
+    <div class="consensus-card-container">
+        <div class="consensus-main-title">CAPITAL STRUCTURE</div>
+        {cap_rows_html}
+    </div>
+    """
+
+    st.markdown(card_2_html, unsafe_allow_html=True)
+
+    # =========================================================
+    # INTERACTIVE DEEP DIVE: TRAJECTORY & SCENARIO SIMULATOR
+    # =========================================================
+    with st.expander("📊 Advanced Consensus Visualizer & Target Price Simulator", expanded=False):
+        tab_chart, tab_sim = st.tabs(["📈 EPS & P/E Trajectory Chart", "🎯 Target Multiple Simulator"])
+
+        with tab_chart:
+            # Build Dual Axis Chart: EPS ($) vs Forward P/E (x)
+            chart_years = []
+            chart_eps = []
+            chart_pe = []
+            chart_labels = []
+
+            for r in pe_rows:
+                if r.get("eps") is not None:
+                    chart_years.append(str(r["year"]))
+                    chart_eps.append(r["eps"])
+                    chart_pe.append(r["pe"])
+                    chart_labels.append(r["label"])
+
+            if chart_years:
+                fig = go.Figure()
+
+                # EPS Bar trace (Left Axis)
+                fig.add_trace(go.Bar(
+                    x=chart_years,
+                    y=chart_eps,
+                    name="Consensus EPS ($)",
+                    marker=dict(
+                        color='rgba(0, 242, 254, 0.75)',
+                        line=dict(color='#00f2fe', width=1.5)
+                    ),
+                    yaxis="y1",
+                    text=[f"${v:.2f}" for v in chart_eps],
+                    textposition="auto",
+                ))
+
+                # P/E Line trace (Right Axis)
+                fig.add_trace(go.Scatter(
+                    x=chart_years,
+                    y=chart_pe,
+                    name="Implied Forward P/E",
+                    mode="lines+markers+text",
+                    line=dict(color='#f59e0b', width=3),
+                    marker=dict(size=9, color='#f59e0b', line=dict(color='#ffffff', width=2)),
+                    yaxis="y2",
+                    text=[f"{v:.1f}x" for v in chart_pe],
+                    textposition="top center",
+                ))
+
+                fig.update_layout(
+                    title=f"<b>{ticker} Consensus EPS Expansion vs Forward P/E Contraction</b>",
+                    template="plotly_dark",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    height=450,
+                    margin=dict(l=20, r=20, t=50, b=30),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    yaxis=dict(
+                        title="Consensus EPS ($)",
+                        title_font=dict(color="#00f2fe"),
+                        tickfont=dict(color="#00f2fe"),
+                        showgrid=True,
+                        gridcolor="rgba(255, 255, 255, 0.08)",
+                    ),
+                    yaxis2=dict(
+                        title="Forward P/E Multiple (x)",
+                        title_font=dict(color="#f59e0b"),
+                        tickfont=dict(color="#f59e0b"),
+                        overlaying="y",
+                        side="right",
+                        showgrid=False,
+                    ),
+                    xaxis=dict(
+                        title="Fiscal Year",
+                        showgrid=False,
+                    )
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("Chart data not available.")
+
+        with tab_sim:
+            st.markdown("#### 🧮 Target Exit Multiple & Price Projection")
+            st.markdown(
+                "Estimate the future stock price and compound annualized return (CAGR) based on consensus EPS and your assumed exit P/E multiple."
+            )
+
+            # Filter future estimated years
+            future_pe_rows = [r for r in pe_rows if not r.get("is_actual") and r.get("eps")]
+
+            if future_pe_rows:
+                sim_col1, sim_col2 = st.columns(2)
+                with sim_col1:
+                    target_year_choice = st.selectbox(
+                        "Target Forecast Year",
+                        options=[r["year"] for r in future_pe_rows],
+                        index=len(future_pe_rows) - 1,
+                        key=f"sim_year_{ticker}"
+                    )
+                selected_row = next(r for r in future_pe_rows if r["year"] == target_year_choice)
+                projected_eps = selected_row["eps"]
+
+                with sim_col2:
+                    current_pe_bench = selected_row.get("pe", 25.0)
+                    default_sim_pe = round(current_pe_bench, 1)
+                    target_pe_mult = st.slider(
+                        f"Assumed Exit P/E Multiple in {target_year_choice}",
+                        min_value=5.0,
+                        max_value=80.0,
+                        value=float(min(80.0, max(5.0, default_sim_pe))),
+                        step=0.5,
+                        key=f"sim_pe_slider_{ticker}"
+                    )
+
+                # Calculations
+                implied_target_price = projected_eps * target_pe_mult
+                cur_year = pe_rows[0]["year"] if pe_rows else target_year_choice - 1
+                n_years = max(1, target_year_choice - cur_year)
+                
+                if price > 0:
+                    total_return_pct = ((implied_target_price - price) / price) * 100
+                    cagr_pct = (((implied_target_price / price) ** (1.0 / n_years)) - 1) * 100
+                else:
+                    total_return_pct = 0.0
+                    cagr_pct = 0.0
+
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Projected EPS", f"${projected_eps:.2f}")
+                m2.metric("Target Exit P/E", f"{target_pe_mult:.1f}x")
+                m3.metric(f"Implied Price ({target_year_choice})", f"${implied_target_price:,.2f}", f"{total_return_pct:+.1f}% Total")
+                m4.metric("Annualized Return (CAGR)", f"{cagr_pct:+.2f}%/yr")
+            else:
+                st.info("Simulation requires forward consensus EPS estimates.")
