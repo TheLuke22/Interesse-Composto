@@ -14,7 +14,8 @@ def render_consensus_pe_section(
     ticker: str,
     info: Optional[Dict[str, Any]] = None,
     stock_obj: Optional[Any] = None,
-    current_price: Optional[float] = None
+    current_price: Optional[float] = None,
+    precalculated_data: Optional[Dict[str, Any]] = None
 ):
     """
     Renders institutional section showing:
@@ -28,13 +29,16 @@ def render_consensus_pe_section(
     info = info or {}
     ticker = ticker.upper().strip()
 
-    # Extract clean consensus data
-    data = extract_consensus_pe_data(
-        ticker=ticker,
-        info=info,
-        stock_obj=stock_obj,
-        current_price=current_price
-    )
+    # Extract clean consensus data (use precalculated cached data if available)
+    if precalculated_data is not None:
+        data = precalculated_data
+    else:
+        data = extract_consensus_pe_data(
+            ticker=ticker,
+            info=info,
+            stock_obj=stock_obj,
+            current_price=current_price
+        )
 
     if not data or not data.get("is_valid"):
         st.warning(f"⚠️ Consensus forecast and P/E data is not currently available for **{ticker}**.")

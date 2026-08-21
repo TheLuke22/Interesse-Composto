@@ -1263,6 +1263,287 @@ def fetch_portfolio_vs_voo_history(tickers_tuple):
         return pd.DataFrame()
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def fetch_realtime_price(ticker):
+    """Recupera il prezzo attuale vivo con cache breve (60s) per navigazione istantanea nei tab."""
+    try:
+        hist = yf.Ticker(ticker).history(period="1d")
+        if not hist.empty and 'Close' in hist:
+            return float(hist['Close'].iloc[-1])
+    except Exception:
+        pass
+    return None
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_benchmark_history(bench_ticker, start_date_str, end_date_str):
+    """Recupera i dati storici del benchmark con cache oraria."""
+    try:
+        return yf.download(bench_ticker, start=start_date_str, end=end_date_str, progress=False)
+    except Exception:
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def fetch_ownership_data(ticker):
+    """Recupera dati major holders e institutional holders con cache giornaliera."""
+    t = yf.Ticker(ticker)
+    mh = None
+    ih = None
+    try:
+        mh = t.major_holders
+    except Exception:
+        pass
+    try:
+        ih = t.institutional_holders
+    except Exception:
+        pass
+    return mh, ih
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_earnings_dates_cached(ticker):
+    """Recupera il calendario utili con fallback su stock.calendar."""
+    stock = yf.Ticker(ticker)
+    try:
+        return stock.earnings_dates
+    except Exception:
+        try:
+            cal = stock.calendar
+            if cal and 'Earnings Date' in cal and cal['Earnings Date']:
+                earn_dates = cal['Earnings Date']
+                earn_data = pd.DataFrame({
+                    "Earnings Date": earn_dates,
+                    "EPS Est. Average": [cal.get("Earnings Average", "N/A")] * len(earn_dates),
+                    "Rev Est. Average": [cal.get("Revenue Average", "N/A")] * len(earn_dates)
+                })
+                earn_data.set_index("Earnings Date", inplace=True)
+                return earn_data
+        except Exception:
+            pass
+    return None
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def fetch_portfolio_close_history(tickers_tuple, period="1y"):
+    """Recupera i prezzi di chiusura per i ticker del portafoglio (matrice correlazione e ottimizzazione)."""
+    if not tickers_tuple:
+        return pd.DataFrame()
+    try:
+        raw = yf.download(list(tickers_tuple), period=period, progress=False, threads=True)
+        if raw.empty:
+            return pd.DataFrame()
+        if isinstance(raw.columns, pd.MultiIndex):
+            return raw['Close']
+        elif 'Close' in raw:
+            return raw[['Close']].rename(columns={'Close': tickers_tuple[0]}) if len(tickers_tuple) == 1 else raw['Close']
+        return raw
+    except Exception:
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_macro_market_data():
+    """Acquisisce i dati macroeconomici principali in batch multithreaded."""
+    macro_tickers = {
+        "S&P 500 (Trend US)": "^GSPC",
+        "Nasdaq 100": "^NDX",
+        "US 10Y Treasury (Risk-Free)": "^TNX",
+        "VIX (Fear Index)": "^VIX",
+        "Oro (Bene Rifugio)": "GC=F",
+        "Argento (Metallo Prezioso)": "SI=F",
+        "Petrolio Brent (Energia)": "BZ=F",
+        "Petrolio WTI (Energia)": "CL=F",
+        "EUR/USD (Valuta)": "EURUSD=X"
+    }
+    try:
+        raw = yf.download(list(macro_tickers.values()), period="6mo", progress=False, threads=True)
+        closes = raw['Close'] if isinstance(raw.columns, pd.MultiIndex) else raw
+        data_out = {}
+        for name, sym in macro_tickers.items():
+            if sym in closes.columns:
+                s = closes[sym].dropna()
+                if not s.empty:
+                    data_out[name] = s
+        return data_out
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def get_sp500_tickers():
+    """Scarica e memorizza nella cache i ticker dell'indice S&P 500."""
+    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    try:
+        html = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5).text
+        return pd.read_html(io.StringIO(html))[0]['Symbol'].tolist()
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def fetch_galaxy_history(tk_tuple):
+    """Scarica dati a 1 anno per la galassia dei super investitori."""
+    try:
+        raw = yf.download(list(tk_tuple), period="1y", progress=False, threads=True)
+        return raw['Close'] if isinstance(raw.columns, pd.MultiIndex) else raw
+    except Exception:
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_consensus_data(ticker, current_price):
+    """Estrae e memorizza nella cache le stime di consenso degli analisti e la struttura del capitale."""
+    from analytics.consensus_pe import extract_consensus_pe_data
+    try:
+        s_obj = yf.Ticker(ticker)
+        s_info = fetch_stock_info(ticker)
+        return extract_consensus_pe_data(
+            ticker=ticker,
+            info=s_info,
+            stock_obj=s_obj,
+            current_price=current_price
+        )
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_home_data(ticker_tuple):
+    """Hybrid: batch yf.download per i prezzi + fast_info parallelo per market cap."""
+    import concurrent.futures
+    import time as _time
+    ticker_list = list(ticker_tuple)
+
+    try:
+        raw = yf.download(ticker_list, period="5d", progress=False, threads=True)
+        if isinstance(raw.columns, pd.MultiIndex):
+            batch_prices = raw['Close']
+        else:
+            batch_prices = raw[['Close']].rename(columns={'Close': ticker_list[0]}) if len(
+                ticker_list) == 1 else raw['Close']
+    except Exception:
+        batch_prices = pd.DataFrame()
+
+    if batch_prices.empty:
+        return pd.DataFrame()
+
+    if isinstance(batch_prices, pd.Series):
+        batch_prices = batch_prices.to_frame(name=ticker_list[0])
+
+    valid_tickers = []
+    failed_tickers = []
+    price_data = {}
+    for tkr in ticker_list:
+        if tkr not in batch_prices.columns:
+            failed_tickers.append(tkr)
+            continue
+        series = batch_prices[tkr].dropna()
+        if len(series) >= 2:
+            curr = float(series.iloc[-1])
+            prev = float(series.iloc[-2])
+            pct = ((curr - prev) / prev) * 100 if prev != 0 else 0.0
+            price_data[tkr] = (curr, pct)
+            valid_tickers.append(tkr)
+        else:
+            failed_tickers.append(tkr)
+
+    if failed_tickers:
+        _time.sleep(0.3)
+        for tkr in failed_tickers:
+            try:
+                hist = yf.Ticker(tkr).history(period="5d")
+                if not hist.empty and len(hist) >= 2:
+                    curr = float(hist['Close'].iloc[-1])
+                    prev = float(hist['Close'].iloc[-2])
+                    pct = ((curr - prev) / prev) * 100 if prev != 0 else 0.0
+                    price_data[tkr] = (curr, pct)
+                    valid_tickers.append(tkr)
+            except Exception:
+                pass
+
+    if not valid_tickers:
+        return pd.DataFrame()
+
+    def get_mcap(tkr):
+        for attempt in range(2):
+            try:
+                mcap = float(yf.Ticker(tkr).fast_info.market_cap)
+                return tkr, mcap
+            except Exception:
+                _time.sleep(0.2 * (attempt + 1))
+        return tkr, 0.0
+
+    workers = min(15, len(valid_tickers))
+    mcap_map = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        for tkr, mcap in executor.map(get_mcap, valid_tickers):
+            mcap_map[tkr] = mcap
+
+    COMPANY_INFO_MAP = {
+        "NVDA": ("NVIDIA", "nvidia.com"), "AAPL": ("Apple", "apple.com"), "MSFT": ("Microsoft", "microsoft.com"),
+        "GOOGL": ("Alphabet", "abc.xyz"), "AMZN": ("Amazon.com", "amazon.com"), "META": ("Meta Platforms", "meta.com"),
+        "BRK-B": ("Berkshire Hathaway", "berkshirehathaway.com"), "TSLA": ("Tesla", "tesla.com"),
+        "AVGO": ("Broadcom", "broadcom.com"), "WMT": ("Walmart", "walmart.com"), "LLY": ("Eli Lilly", "lilly.com"),
+        "JPM": ("JPMorgan Chase", "jpmorganchase.com"), "V": ("Visa", "visa.com"), "UNH": ("UnitedHealth", "unitedhealthgroup.com"),
+        "XOM": ("Exxon Mobil", "exxonmobil.com"), "MA": ("Mastercard", "mastercard.com"),
+        "PG": ("Procter & Gamble", "pg.com"), "JNJ": ("Johnson & Johnson", "jnj.com"),
+        "COST": ("Costco", "costco.com"), "HD": ("Home Depot", "homedepot.com"),
+        "ABBV": ("AbbVie", "abbvie.com"), "MRK": ("Merck", "merck.com"),
+        "BAC": ("Bank of America", "bankofamerica.com"), "CRM": ("Salesforce", "salesforce.com"),
+        "NFLX": ("Netflix", "netflix.com"),
+    }
+
+    results = []
+    for tkr in valid_tickers:
+        curr, pct = price_data[tkr]
+        mcap = mcap_map.get(tkr, 0.0)
+        name, domain = COMPANY_INFO_MAP.get(tkr, (tkr, ""))
+
+        results.append({
+            "Ticker": tkr, "Name": name, "Price": curr,
+            "Change": pct, "MarketCap": mcap, "Domain": domain
+        })
+
+    df = pd.DataFrame(results)
+    if not df.empty:
+        df.sort_values(by="MarketCap", ascending=False, inplace=True)
+        df.reset_index(drop=True, inplace=True)
+    return df
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def get_full_sp500_list():
+    """Scarica la lista completa S&P 500 da Wikipedia, con cleanup ticker."""
+    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    try:
+        html_table = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5).text
+        raw_tickers = pd.read_html(io.StringIO(html_table))[0]['Symbol'].tolist()
+        cleaned = [t.replace('.', '-') for t in raw_tickers]
+        deduped = []
+        for t in cleaned:
+            base = t.split('-')[0] if t not in ('BRK-B', 'BF-B') else t
+            if base == 'GOOG' and 'GOOGL' in cleaned and t != 'GOOGL':
+                continue
+            if t not in deduped:
+                deduped.append(t)
+        return deduped
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def get_sp500_sectors():
+    """Fetch GICS sector mapping from Wikipedia for all S&P 500 tickers."""
+    try:
+        url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+        html = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5).text
+        df_wiki = pd.read_html(io.StringIO(html))[0]
+        return dict(zip(df_wiki['Symbol'].str.replace('.', '-', regex=False), df_wiki['GICS Sector']))
+    except Exception:
+        return {}
+
+
 def fetch_fmp_quote(ticker, api_key):
     """Fetch real-time quote data from Financial Modeling Prep (stable API)."""
     result = {}
@@ -1713,12 +1994,13 @@ def fetch_macrotrends_financials(ticker, limit_years=10):
         except ValueError:
             return None
 
-    def _scrape_metric(metric_slug):
+    def _scrape_metric_item(item):
+        row_name, metric_slug = item
         url = f'https://www.macrotrends.net/stocks/charts/{ticker}/{slug}/{metric_slug}'
         try:
-            r = requests.get(url, headers=headers_req, timeout=10)
+            r = requests.get(url, headers=headers_req, timeout=3.5)
             if r.status_code != 200:
-                return {}
+                return row_name, {}
             soup = BeautifulSoup(r.text, 'html.parser')
             for t in soup.find_all('table'):
                 rows = t.find_all('tr')
@@ -1739,17 +2021,19 @@ def fetch_macrotrends_financials(ticker, limit_years=10):
                         val = _parse_value(cells[1])
                         if val is not None:
                             result[year] = val
-                return result
+                if result:
+                    return row_name, result
         except Exception:
             pass
-        return {}
+        return row_name, {}
 
-    # Step 3: Scrape all metrics
+    # Step 3: Scrape all metrics concurrently in parallel
     all_data = {}
-    for row_name, ms in metric_slugs.items():
-        data = _scrape_metric(ms)
-        if data:
-            all_data[row_name] = data
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+        for row_name, res in executor.map(_scrape_metric_item, metric_slugs.items()):
+            if res:
+                all_data[row_name] = res
 
     if not all_data:
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
@@ -2134,144 +2418,6 @@ if page_choice == "🏠 Home":
     if 'home_filter' not in st.session_state:
         st.session_state.home_filter = "S&P 500"
 
-    @st.cache_data(ttl=300)
-    def fetch_home_data(ticker_tuple):
-        """Hybrid: batch yf.download per i prezzi + fast_info parallelo per market cap."""
-        import concurrent.futures
-        import time as _time
-        ticker_list = list(ticker_tuple)
-
-        # STEP 1: Batch download prezzi (una sola chiamata HTTP per tutti)
-        try:
-            raw = yf.download(ticker_list, period="5d",
-                              progress=False, threads=True)
-            if isinstance(raw.columns, pd.MultiIndex):
-                batch_prices = raw['Close']
-            else:
-                batch_prices = raw[['Close']].rename(columns={'Close': ticker_list[0]}) if len(
-                    ticker_list) == 1 else raw['Close']
-        except Exception:
-            batch_prices = pd.DataFrame()
-
-        if batch_prices.empty:
-            return pd.DataFrame()
-
-        # Se è un solo ticker, yf.download ritorna una Series
-        if isinstance(batch_prices, pd.Series):
-            batch_prices = batch_prices.to_frame(name=ticker_list[0])
-
-        # Identifica ticker con dati validi
-        valid_tickers = []
-        failed_tickers = []
-        price_data = {}
-        for tkr in ticker_list:
-            if tkr not in batch_prices.columns:
-                failed_tickers.append(tkr)
-                continue
-            series = batch_prices[tkr].dropna()
-            if len(series) >= 2:
-                curr = float(series.iloc[-1])
-                prev = float(series.iloc[-2])
-                pct = ((curr - prev) / prev) * 100 if prev != 0 else 0.0
-                price_data[tkr] = (curr, pct)
-                valid_tickers.append(tkr)
-            else:
-                failed_tickers.append(tkr)
-
-        # Retry singolo per ticker rate-limited dal batch
-        if failed_tickers:
-            _time.sleep(0.5)
-            for tkr in failed_tickers:
-                try:
-                    hist = yf.Ticker(tkr).history(period="5d")
-                    if not hist.empty and len(hist) >= 2:
-                        curr = float(hist['Close'].iloc[-1])
-                        prev = float(hist['Close'].iloc[-2])
-                        pct = ((curr - prev) / prev) * \
-                            100 if prev != 0 else 0.0
-                        price_data[tkr] = (curr, pct)
-                        valid_tickers.append(tkr)
-                except Exception:
-                    pass
-
-        if not valid_tickers:
-            return pd.DataFrame()
-
-        # STEP 2: Fetch market caps in parallelo con retry + throttle
-        def get_mcap(tkr):
-            for attempt in range(3):
-                try:
-                    mcap = float(yf.Ticker(tkr).fast_info.market_cap)
-                    return tkr, mcap
-                except Exception:
-                    _time.sleep(0.3 * (attempt + 1))
-            return tkr, 0.0
-
-        # Limita concorrenza per evitare rate-limit Yahoo Finance
-        workers = min(15, len(valid_tickers))
-        mcap_map = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-            for tkr, mcap in executor.map(get_mcap, valid_tickers):
-                mcap_map[tkr] = mcap
-
-        # STEP 3: Assembla risultati
-        results = []
-        for tkr in valid_tickers:
-            curr, pct = price_data[tkr]
-            mcap = mcap_map.get(tkr, 0.0)
-
-            if tkr in COMPANY_INFO:
-                name, domain = COMPANY_INFO[tkr]
-            else:
-                name, domain = tkr, ""
-
-            results.append({
-                "Ticker": tkr, "Name": name, "Price": curr,
-                "Change": pct, "MarketCap": mcap, "Domain": domain
-            })
-
-        df = pd.DataFrame(results)
-        if not df.empty:
-            df.sort_values(by="MarketCap", ascending=False, inplace=True)
-            df.reset_index(drop=True, inplace=True)
-        return df
-
-    @st.cache_data(ttl=3600*24)
-    def get_full_sp500_list():
-        """Scarica la lista completa S&P 500 da Wikipedia, con cleanup ticker."""
-        url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-        html_table = requests.get(
-            url, headers={'User-Agent': 'Mozilla/5.0'}).text
-        raw_tickers = pd.read_html(io.StringIO(html_table))[
-            0]['Symbol'].tolist()
-
-        # Converti punti in trattini (es. BRK.B -> BRK-B, BF.B -> BF-B)
-        cleaned = [t.replace('.', '-') for t in raw_tickers]
-
-        # Rimuovi duplicati classe azioni (GOOG/GOOGL -> tieni solo GOOGL)
-        deduped = []
-        for t in cleaned:
-            base = t.split('-')[0] if t not in ('BRK-B', 'BF-B') else t
-            # Gestione specifica Alphabet: GOOG e GOOGL
-            if base == 'GOOG' and 'GOOGL' in cleaned:
-                if t != 'GOOGL':
-                    continue  # Salta GOOG, tieni solo GOOGL
-            if t not in deduped:
-                deduped.append(t)
-        return deduped
-
-    @st.cache_data(ttl=3600*24)
-    def get_sp500_sectors():
-        """Fetch GICS sector mapping from Wikipedia for all S&P 500 tickers."""
-        try:
-            url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-            html = requests.get(
-                url, headers={'User-Agent': 'Mozilla/5.0'}).text
-            df_wiki = pd.read_html(io.StringIO(html))[0]
-            return dict(zip(df_wiki['Symbol'].str.replace('.', '-', regex=False), df_wiki['GICS Sector']))
-        except Exception:
-            return {}
-
     # --- Filter Tabs ---
     filter_col1, filter_col2, filter_col3 = st.columns([1, 1, 1])
     with filter_col1:
@@ -2497,10 +2643,10 @@ elif page_choice == "📊 Stock Tracker":
                 st.markdown(f"### 🏢 {info.get('shortName', a_ticker)}")
 
                 # --- TOP METRICS BAR (REAL-TIME) ---
-                # Bypasso la cache per ottenere il prezzo realmente vivo dal mercato
-                rt_hist = stock.history(period="1d")
-                rt_price = rt_hist['Close'].iloc[-1] if not rt_hist.empty else info.get(
-                    'currentPrice', hist_data['Close'].iloc[-1])
+                # Prezzo live con smart-cache a 60 secondi per navigazione fulminea
+                rt_live = fetch_realtime_price(a_ticker)
+                rt_price = rt_live if rt_live is not None and rt_live > 0 else (info.get(
+                    'currentPrice') or (hist_data['Close'].iloc[-1] if not hist_data.empty else 0.0))
 
                 prev_close = info.get(
                     'previousClose', hist_data['Close'].iloc[-2] if len(hist_data) > 1 else rt_price)
@@ -2702,8 +2848,10 @@ elif page_choice == "📊 Stock Tracker":
                         st.plotly_chart(fig_cand, use_container_width=True)
 
                     else:
-                        bench_raw = yf.download(
-                            a_bench, start=hist_data.index[0], end=hist_data.index[-1], progress=False)
+                        bench_start = str(hist_data.index[0])[:10]
+                        bench_end = str(hist_data.index[-1])[:10]
+                        bench_raw = fetch_benchmark_history(
+                            a_bench, bench_start, bench_end)
                         if not bench_raw.empty:
                             if 'Close' in bench_raw.columns:
                                 bench_close = bench_raw['Close'].squeeze()
@@ -2921,11 +3069,13 @@ elif page_choice == "📊 Stock Tracker":
 
                 # --- TAB 3: FORWARD P/E & CONSENSUS ---
                 with tab_consensus:
+                    consensus_data = fetch_consensus_data(a_ticker, rt_price)
                     render_consensus_pe_section(
                         ticker=a_ticker,
                         info=info,
                         stock_obj=stock,
-                        current_price=rt_price
+                        current_price=rt_price,
+                        precalculated_data=consensus_data
                     )
 
                 # --- TAB 4: PROJECTIONS ---
@@ -2999,13 +3149,10 @@ elif page_choice == "📊 Stock Tracker":
                 with tab_holders:
                     st.subheader("Major Shareholders")
                     col_h1, col_h2 = st.columns(2)
+                    holders, inst_holders = fetch_ownership_data(a_ticker)
 
                     with col_h1:
                         st.write("**Share Ownership Breakdown**")
-                        try:
-                            holders = stock.major_holders
-                        except Exception:
-                            holders = None
                         if holders is not None and not holders.empty:
                             holders_df = holders.copy()
                             if isinstance(holders_df, pd.Series):
@@ -3044,10 +3191,6 @@ elif page_choice == "📊 Stock Tracker":
 
                     with col_h2:
                         st.write("**Top Institutional Holders**")
-                        try:
-                            inst_holders = stock.institutional_holders
-                        except Exception:
-                            inst_holders = None
                         if inst_holders is not None and not inst_holders.empty:
                             inst_df = inst_holders.copy()
 
@@ -3384,27 +3527,8 @@ elif page_choice == "📊 Stock Tracker":
                 # --- TAB 6: EARNINGS & FUNDS ---
                 with tab_funds:
                     st.subheader("📅 Upcoming Earnings & Estimates")
-                    try:
-                        earn_data = stock.earnings_dates
-                    except Exception:
-                        try:
-                            # Fallback to stock.calendar se earnings_dates fallisce (es. KeyError su Streamlit Cloud)
-                            cal = stock.calendar
-                            if cal and 'Earnings Date' in cal and cal['Earnings Date']:
-                                earn_dates = cal['Earnings Date']
-                                earn_data = pd.DataFrame({
-                                    "Earnings Date": earn_dates,
-                                    "EPS Est. Average": [cal.get("Earnings Average", "N/A")] * len(earn_dates),
-                                    "Rev Est. Average": [cal.get("Revenue Average", "N/A")] * len(earn_dates)
-                                })
-                                # Gestisci le date come indice se ci sono, per coerenza con earnings_dates
-                                earn_data.set_index(
-                                    "Earnings Date", inplace=True)
-                            else:
-                                earn_data = None
-                        except Exception:
-                            earn_data = None
-                    if earn_data is not None:
+                    earn_data = fetch_earnings_dates_cached(a_ticker)
+                    if earn_data is not None and not (isinstance(earn_data, pd.DataFrame) and earn_data.empty):
                         st.dataframe(earn_data, use_container_width=True)
                     else:
                         st.info("Upcoming earnings dates not available.")
@@ -4175,8 +4299,8 @@ function doPost(e) {
         unique_portfolio_tickers = list(set(tickers))
         if len(unique_portfolio_tickers) >= 2:
             try:
-                corr_data = yf.download(
-                    unique_portfolio_tickers, period="1y", progress=False)['Close']
+                corr_data = fetch_portfolio_close_history(
+                    tuple(sorted(unique_portfolio_tickers)), period="1y")
                 if isinstance(corr_data, pd.Series):
                     st.info(
                         "Aggiungi almeno 2 titoli diversi per la matrice di correlazione.")
@@ -4235,8 +4359,8 @@ function doPost(e) {
             if st.button("🚀 Ottimizza Portafoglio", type="primary"):
                 with st.spinner("Ottimizzazione covarianza in corso..."):
                     try:
-                        data_batch = yf.download(
-                            tickers, period="3y", progress=False)['Close']
+                        data_batch = fetch_portfolio_close_history(
+                            tuple(sorted(tickers)), period="3y")
                         if not data_batch.empty:
                             if isinstance(data_batch, pd.Series):  # edge case
                                 st.error("Errore download batch.")
@@ -4589,32 +4713,6 @@ elif page_choice == "📰 Financial News":
 # PAGE 5: MACRO & MARKET
 # ==========================================
 elif page_choice == "🌍 Macro & Market":
-    @st.cache_data(ttl=1800)
-    def fetch_macro_market_data():
-        macro_tickers = {
-            "S&P 500 (Trend US)": "^GSPC",
-            "Nasdaq 100": "^NDX",
-            "US 10Y Treasury (Risk-Free)": "^TNX",
-            "VIX (Fear Index)": "^VIX",
-            "Oro (Bene Rifugio)": "GC=F",
-            "Argento (Metallo Prezioso)": "SI=F",
-            "Petrolio Brent (Energia)": "BZ=F",
-            "Petrolio WTI (Energia)": "CL=F",
-            "EUR/USD (Valuta)": "EURUSD=X"
-        }
-        try:
-            raw = yf.download(list(macro_tickers.values()), period="6mo", progress=False, threads=True)
-            closes = raw['Close'] if isinstance(raw.columns, pd.MultiIndex) else raw
-            data_out = {}
-            for name, sym in macro_tickers.items():
-                if sym in closes.columns:
-                    s = closes[sym].dropna()
-                    if not s.empty:
-                        data_out[name] = s
-            return data_out
-        except Exception:
-            return {}
-
     st.title("🌍 Macro & Market Pulse")
     st.markdown("<p style='color: #8A929A; font-style: italic; font-size: 18px;'>« Governments don't rule the world, Goldman Sachs rules the world. »</p>", unsafe_allow_html=True)
     st.divider()
@@ -4682,12 +4780,6 @@ elif page_choice == "🔍 Stock Screener":
     st.write(
         "Esplora l'intero **S&P 500** alla ricerca di opportunità Value e Dividend.")
     st.divider()
-
-    @st.cache_data(ttl=3600*24)
-    def get_sp500_tickers():
-        url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-        html = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}).text
-        return pd.read_html(io.StringIO(html))[0]['Symbol'].tolist()
 
     try:
         sp500_tickers = get_sp500_tickers()
@@ -5362,12 +5454,8 @@ elif page_choice == "👑 Super Investors":
                                     inv_owner.append(inv)
                                     allocs.append(item['Allocazione %'])
 
-                        @st.cache_data(ttl=3600*24)
-                        def _fetch_galaxy(tk_tuple):
-                            raw = yf.download(list(tk_tuple), period="1y", progress=False, threads=True)
-                            return raw['Close'] if isinstance(raw.columns, pd.MultiIndex) else raw
-
-                        data_1y = _fetch_galaxy(tuple(sorted(unique_tkrs)))
+                        unique_tkrs = list(set(all_tickers))
+                        data_1y = fetch_galaxy_history(tuple(sorted(unique_tkrs)))
 
                         if not data_1y.empty:
                             if isinstance(data_1y, pd.Series):
