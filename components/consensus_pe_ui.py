@@ -56,6 +56,29 @@ def render_consensus_pe_section(
     price = data.get("current_price", 0.0) or 0.0
 
     # =========================================================
+    # DARK THEME STYLES (MATCHING APP PALETTE)
+    # =========================================================
+    card_container_style = (
+        "background: rgba(15, 23, 42, 0.75); "
+        "border: 1px solid rgba(255, 255, 255, 0.09); "
+        "border-radius: 16px; "
+        "padding: 26px 30px; "
+        "margin-bottom: 24px; "
+        "box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); "
+        "backdrop-filter: blur(16px); "
+        "font-family: 'Inter', -apple-system, sans-serif;"
+    )
+
+    row_style = (
+        "display: flex; "
+        "justify-content: space-between; "
+        "align-items: center; "
+        "padding: 13px 4px; "
+        "border-bottom: 1px solid rgba(255, 255, 255, 0.07); "
+        "font-size: 14.5px;"
+    )
+
+    # =========================================================
     # CARD 1: {TICKER} PE / PEG RATIO
     # =========================================================
     pe_rows_list = []
@@ -63,9 +86,9 @@ def render_consensus_pe_section(
         label = row.get("label", "")
         pe_val = f"{row['pe']:.2f}" if row.get("pe") is not None else "-"
         pe_rows_list.append(
-            f'<div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #edf2f7; font-size:14.5px;">'
-            f'<span style="font-weight:700; color:#111827;">{label}</span>'
-            f'<span style="font-weight:500; color:#111827; text-align:right; font-family:\'JetBrains Mono\', monospace, sans-serif; font-size:14.5px;">{pe_val}</span>'
+            f'<div style="{row_style}">'
+            f'<span style="font-weight:600; color:#e2e8f0;">{label}</span>'
+            f'<span style="font-weight:700; color:#ffffff; text-align:right; font-family:\'JetBrains Mono\', monospace, sans-serif; font-size:14.5px;">{pe_val}</span>'
             f'</div>'
         )
     pe_rows_html = "".join(pe_rows_list)
@@ -73,22 +96,27 @@ def render_consensus_pe_section(
     growth_rows_list = []
     for row in growth_rows:
         period = row.get("period", "")
+        growth_pct = row.get("growth_pct", 0.0)
         growth_str = row.get("growth_str", "-")
+        is_pos = (growth_pct is not None and growth_pct >= 0)
+        badge_bg = "rgba(34, 197, 94, 0.15)" if is_pos else "rgba(239, 68, 68, 0.15)"
+        badge_color = "#22c55e" if is_pos else "#ef4444"
+        badge_sign = "+" if (is_pos and not str(growth_str).startswith("+") and not str(growth_str).startswith("-")) else ""
         growth_rows_list.append(
-            f'<div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #edf2f7; font-size:14.5px;">'
-            f'<span style="font-weight:700; color:#111827;">{period}</span>'
-            f'<span style="font-weight:500; color:#111827; text-align:right; font-family:\'JetBrains Mono\', monospace, sans-serif; font-size:14.5px;">{growth_str}</span>'
+            f'<div style="{row_style}">'
+            f'<span style="font-weight:600; color:#e2e8f0;">{period}</span>'
+            f'<span style="background:{badge_bg}; color:{badge_color}; padding:3px 10px; border-radius:6px; font-weight:700; font-family:\'JetBrains Mono\', monospace, sans-serif; font-size:13.5px;">{badge_sign}{growth_str}</span>'
             f'</div>'
         )
     growth_rows_html = "".join(growth_rows_list)
 
     card_1_html = (
-        f'<div style="background:#ffffff; color:#111827; border-radius:12px; padding:26px 30px; margin-bottom:20px; box-shadow:0 2px 12px rgba(0,0,0,0.06); border:1px solid #e5e7eb; font-family:\'Inter\', -apple-system, sans-serif;">'
-        f'<div style="font-size:15px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; color:#111827; margin-bottom:6px;">{ticker} PE / PEG RATIO</div>'
-        f'<div style="font-size:14px; color:#6b7280; margin-bottom:20px; line-height:1.4;">View {company_name} ({ticker}) current and estimated P/E ratio data provided by Wall Street Consensus & Seeking Alpha models.</div>'
-        f'<div style="font-size:16px; font-weight:700; color:#111827; margin-top:20px; margin-bottom:8px;">Price/Earnings Ratio</div>'
+        f'<div style="{card_container_style}">'
+        f'<div style="font-size:16px; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:#ffffff; margin-bottom:6px;">{ticker} PE / PEG RATIO</div>'
+        f'<div style="font-size:13.5px; color:#94a3b8; margin-bottom:20px; line-height:1.5;">View {company_name} ({ticker}) current and estimated P/E ratio data provided by Wall Street Consensus & Seeking Alpha models.</div>'
+        f'<div style="font-size:15px; font-weight:700; color:#60a5fa; border-left:3px solid #3b82f6; padding-left:10px; margin-top:22px; margin-bottom:12px;">Price/Earnings Ratio</div>'
         f'{pe_rows_html}'
-        f'<div style="font-size:16px; font-weight:700; color:#111827; margin-top:24px; margin-bottom:8px;">Consensus EPS Estimate Growth Rate</div>'
+        f'<div style="font-size:15px; font-weight:700; color:#60a5fa; border-left:3px solid #3b82f6; padding-left:10px; margin-top:26px; margin-bottom:12px;">Consensus EPS Estimate Growth Rate</div>'
         f'{growth_rows_html}'
         f'</div>'
     )
@@ -103,16 +131,16 @@ def render_consensus_pe_section(
         item = row.get("item", "")
         val_str = row.get("value_str", "-")
         cap_rows_list.append(
-            f'<div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #edf2f7; font-size:14.5px;">'
-            f'<span style="font-weight:700; color:#111827;">{item}</span>'
-            f'<span style="font-weight:500; color:#111827; text-align:right; font-family:\'JetBrains Mono\', monospace, sans-serif; font-size:14.5px;">{val_str}</span>'
+            f'<div style="{row_style}">'
+            f'<span style="font-weight:600; color:#e2e8f0;">{item}</span>'
+            f'<span style="font-weight:700; color:#38bdf8; text-align:right; font-family:\'JetBrains Mono\', monospace, sans-serif; font-size:14.5px;">{val_str}</span>'
             f'</div>'
         )
     cap_rows_html = "".join(cap_rows_list)
 
     card_2_html = (
-        f'<div style="background:#ffffff; color:#111827; border-radius:12px; padding:26px 30px; margin-bottom:20px; box-shadow:0 2px 12px rgba(0,0,0,0.06); border:1px solid #e5e7eb; font-family:\'Inter\', -apple-system, sans-serif;">'
-        f'<div style="font-size:15px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; color:#111827; margin-bottom:12px;">CAPITAL STRUCTURE</div>'
+        f'<div style="{card_container_style}">'
+        f'<div style="font-size:16px; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:#ffffff; margin-bottom:12px;">CAPITAL STRUCTURE</div>'
         f'{cap_rows_html}'
         f'</div>'
     )
