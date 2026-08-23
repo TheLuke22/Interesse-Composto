@@ -1,3 +1,4 @@
+import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -17,6 +18,7 @@ logger = logging.getLogger("QualtrimEngine")
 SEC_HEADERS = {'User-Agent': 'QualtrimApp admin@qualtrimapp.com'}
 _CIK_CACHE = {}
 
+@st.cache_data(ttl=86400, show_spinner=False)
 def get_sec_cik(ticker: str) -> str:
     """Fetch CIK number for any ticker from SEC EDGAR company tickers mapping."""
     ticker_upper = ticker.upper()
@@ -51,6 +53,7 @@ def format_quarter_label(date_str: str) -> str:
         return date_str
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
 def fetch_sec_edgar_full_history(ticker: str, period="Annual"):
     """
     Dynamically extract 2010-2026 financial statement history from SEC EDGAR XBRL facts.
@@ -435,6 +438,7 @@ QUALTRIM_DATABASE = {
 # DYNAMIC FETCHER ROUTER: CURATED DATABASE -> SEC EDGAR 2010-2026 -> YFINANCE
 # ==============================================================================
 
+@st.cache_data(ttl=86400, show_spinner=False)
 def get_company_segment_data(ticker: str, period="Annual"):
     """
     Retrieve business segment, geographic segment, and financial breakdown for ANY ticker.
@@ -933,6 +937,7 @@ _MINI_CHART_LAYOUT = dict(
 )
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
 def _get_extended_financials(ticker: str, period="Annual"):
     """
     Extract maximum multi-year financial history combining SEC EDGAR XBRL (15-17 years),
@@ -1603,6 +1608,7 @@ def render_qualtrim_data_table(df: pd.DataFrame, title: str) -> str:
 # WARREN BUFFETT 10-K FINANCIAL STATEMENT SCORECARD ENGINE
 # ==============================================================================
 
+@st.cache_data(ttl=86400, show_spinner=False)
 def calculate_buffett_scorecard(ticker: str) -> dict:
     """
     Evaluates a company's financial statements against Warren Buffett's 9 core 10-K criteria.
