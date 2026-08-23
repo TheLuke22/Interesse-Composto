@@ -706,7 +706,9 @@ def render_stock_tracker_ui(
 
                     # Debt vs Equity & Margins
                     total_debt = _extract_annual_series(fh_bal, 'Total Debt')
-                    total_equity = _extract_annual_series(fh_bal, 'Stockholders Equity') or _extract_annual_series(fh_bal, 'Total Stockholders Equity')
+                    total_equity = _extract_annual_series(fh_bal, 'Stockholders Equity')
+                    if total_equity is None:
+                        total_equity = _extract_annual_series(fh_bal, 'Total Stockholders Equity')
                     gross_profit = _extract_annual_series(fh_inc, 'Gross Profit')
                     operating_income = _extract_annual_series(fh_inc, 'Operating Income')
 
