@@ -214,13 +214,19 @@ def render_stock_tracker_ui(
 
                 st.divider()
                 with st.expander("📄 Genera Report PDF (Tear Sheet)"):
-                    pdf_bytes = generate_pdf_report_fn(a_ticker, rt_price, info, sharpe, max_dd)
-                    st.download_button(
-                        label="Scarica PDF Tear Sheet",
-                        data=pdf_bytes,
-                        file_name=f"{a_ticker}_TearSheet.pdf",
-                        mime="application/pdf"
-                    )
+                    pdf_key = f"pdf_{a_ticker}_{a_years}"
+                    if pdf_key not in st.session_state:
+                        if st.button("📑 Genera PDF Tear Sheet", key="btn_gen_pdf", type="secondary"):
+                            with st.spinner("Generazione PDF Tear Sheet in corso..."):
+                                st.session_state[pdf_key] = generate_pdf_report_fn(a_ticker, rt_price, info, sharpe, max_dd)
+                                st.rerun()
+                    if pdf_key in st.session_state:
+                        st.download_button(
+                            label="📥 Scarica PDF Tear Sheet",
+                            data=st.session_state[pdf_key],
+                            file_name=f"{a_ticker}_TearSheet.pdf",
+                            mime="application/pdf"
+                        )
 
                 tab_price, tab_divs, tab_consensus, tab_mc, tab_holders, tab_fhealth, tab_funds, tab_dcf, tab_buffett = st.tabs([
                     "📊 Price & Tech Analysis",

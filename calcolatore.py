@@ -1986,7 +1986,7 @@ def fetch_macrotrends_financials(ticker, limit_years=10):
         try:
             test_url = f'https://www.macrotrends.net/stocks/charts/{tk}/x/revenue'
             r = requests.get(test_url, headers=headers_req,
-                             timeout=10, allow_redirects=True)
+                             timeout=2.0, allow_redirects=True)
             if r.status_code == 200:
                 m = _re.search(
                     rf'/stocks/charts/{tk}/([^/]+)/', r.url, _re.IGNORECASE)
@@ -2025,7 +2025,7 @@ def fetch_macrotrends_financials(ticker, limit_years=10):
         row_name, metric_slug = item
         url = f'https://www.macrotrends.net/stocks/charts/{ticker}/{slug}/{metric_slug}'
         try:
-            r = requests.get(url, headers=headers_req, timeout=3.5)
+            r = requests.get(url, headers=headers_req, timeout=2.0)
             if r.status_code != 200:
                 return row_name, {}
             soup = BeautifulSoup(r.text, 'html.parser')
@@ -2334,69 +2334,71 @@ page_choice = st.sidebar.radio("Tool:", [
 # ==========================================
 # PAGE ROUTING & COMPONENT DELEGATION
 # ==========================================
-if page_choice == "🏠 Home":
-    render_home_ui(
-        fetch_home_data_fn=fetch_home_data,
-        fetch_watchlist_prices_fn=fetch_watchlist_prices,
-        save_watchlist_fn=save_watchlist,
-        get_full_sp500_list_fn=get_full_sp500_list,
-        get_sp500_sectors_fn=get_sp500_sectors,
-    )
+main_page_slot = st.empty()
+with main_page_slot.container():
+    if page_choice == "🏠 Home":
+        render_home_ui(
+            fetch_home_data_fn=fetch_home_data,
+            fetch_watchlist_prices_fn=fetch_watchlist_prices,
+            save_watchlist_fn=save_watchlist,
+            get_full_sp500_list_fn=get_full_sp500_list,
+            get_sp500_sectors_fn=get_sp500_sectors,
+        )
 
-elif page_choice == "📈 Compound Interest":
-    render_compound_interest_ui()
+    elif page_choice == "📈 Compound Interest":
+        render_compound_interest_ui()
 
-elif page_choice == "📊 Stock Tracker":
-    render_stock_tracker_ui(
-        fetch_stock_info_fn=fetch_stock_info,
-        fetch_history_fn=fetch_history,
-        fetch_realtime_price_fn=fetch_realtime_price,
-        fetch_benchmark_history_fn=fetch_benchmark_history,
-        fetch_consensus_data_fn=fetch_consensus_data,
-        fetch_ownership_data_fn=fetch_ownership_data,
-        fetch_earnings_dates_cached_fn=fetch_earnings_dates_cached,
-        fetch_macrotrends_financials_fn=fetch_macrotrends_financials,
-        fetch_fmp_financials_fn=fetch_fmp_financials,
-        fetch_financials_extended_fn=fetch_financials_extended,
-        merge_financial_dfs_fn=_merge_financial_dfs,
-        fetch_financials_fn=fetch_financials,
-        generate_pdf_report_fn=generate_pdf_report,
-        analyze_financial_statements_ai_fn=analyze_financial_statements_ai,
-    )
+    elif page_choice == "📊 Stock Tracker":
+        render_stock_tracker_ui(
+            fetch_stock_info_fn=fetch_stock_info,
+            fetch_history_fn=fetch_history,
+            fetch_realtime_price_fn=fetch_realtime_price,
+            fetch_benchmark_history_fn=fetch_benchmark_history,
+            fetch_consensus_data_fn=fetch_consensus_data,
+            fetch_ownership_data_fn=fetch_ownership_data,
+            fetch_earnings_dates_cached_fn=fetch_earnings_dates_cached,
+            fetch_macrotrends_financials_fn=fetch_macrotrends_financials,
+            fetch_fmp_financials_fn=fetch_fmp_financials,
+            fetch_financials_extended_fn=fetch_financials_extended,
+            merge_financial_dfs_fn=_merge_financial_dfs,
+            fetch_financials_fn=fetch_financials,
+            generate_pdf_report_fn=generate_pdf_report,
+            analyze_financial_statements_ai_fn=analyze_financial_statements_ai,
+        )
 
-elif page_choice == "🧩 Business Segments":
-    render_business_segments_ui()
+    elif page_choice == "🧩 Business Segments":
+        render_business_segments_ui()
 
-elif page_choice == "📁 My Portfolio":
-    render_my_portfolio_ui(
-        save_portfolio_fn=save_portfolio,
-        get_batch_prices_fn=get_batch_prices,
-        fetch_stock_info_fn=fetch_stock_info,
-        fetch_portfolio_vs_voo_history_fn=fetch_portfolio_vs_voo_history,
-        fetch_portfolio_close_history_fn=fetch_portfolio_close_history,
-        push_portfolio_to_gsheets_fn=push_portfolio_to_gsheets,
-        analyze_portfolio_diversification_fn=analyze_portfolio_diversification,
-    )
+    elif page_choice == "📁 My Portfolio":
+        render_my_portfolio_ui(
+            save_portfolio_fn=save_portfolio,
+            get_batch_prices_fn=get_batch_prices,
+            fetch_stock_info_fn=fetch_stock_info,
+            fetch_portfolio_vs_voo_history_fn=fetch_portfolio_vs_voo_history,
+            fetch_portfolio_close_history_fn=fetch_portfolio_close_history,
+            push_portfolio_to_gsheets_fn=push_portfolio_to_gsheets,
+            analyze_portfolio_diversification_fn=analyze_portfolio_diversification,
+        )
 
-elif page_choice == "📰 Financial News":
-    render_financial_news_ui(
-        fetch_news_fn=fetch_news,
-        get_batch_prices_fn=get_batch_prices,
-        ask_financial_chatbot_fn=ask_financial_chatbot,
-    )
+    elif page_choice == "📰 Financial News":
+        render_financial_news_ui(
+            fetch_news_fn=fetch_news,
+            get_batch_prices_fn=get_batch_prices,
+            ask_financial_chatbot_fn=ask_financial_chatbot,
+        )
 
-elif page_choice == "👑 Super Investors":
-    render_superinvestors_ui(
-        fetch_galaxy_history_fn=fetch_galaxy_history,
-    )
+    elif page_choice == "👑 Super Investors":
+        render_superinvestors_ui(
+            fetch_galaxy_history_fn=fetch_galaxy_history,
+        )
 
-elif page_choice == "🌍 Macro & Market":
-    render_macro_market_ui(
-        fetch_macro_market_data_fn=fetch_macro_market_data,
-    )
+    elif page_choice == "🌍 Macro & Market":
+        render_macro_market_ui(
+            fetch_macro_market_data_fn=fetch_macro_market_data,
+        )
 
-elif page_choice == "🔍 Stock Screener":
-    render_stock_screener_ui(
-        get_sp500_tickers_fn=get_sp500_tickers,
-        fetch_stock_info_fn=fetch_stock_info,
-    )
+    elif page_choice == "🔍 Stock Screener":
+        render_stock_screener_ui(
+            get_sp500_tickers_fn=get_sp500_tickers,
+            fetch_stock_info_fn=fetch_stock_info,
+        )
