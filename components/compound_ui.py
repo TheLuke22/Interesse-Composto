@@ -12,29 +12,30 @@ def render_compound_interest_ui():
     """
     Renders the upgraded Compound Interest & Financial Independence suite.
     """
-    st.title("💸 Compound Interest & Wealth Accumulation Suite")
-    st.markdown(
-        "<p style='color: #8A929A; font-size: 16px; margin-bottom:20px;'>"
-        "Simulate exponential portfolio growth with recurring contributions (PAC/DCA), "
-        "tax drag impact, real inflation-adjusted purchasing power, and FIRE retirement milestones."
-        "</p>",
-        unsafe_allow_html=True
-    )
-    st.divider()
+    with st.container(key="ci_main_root_container"):
+        st.title("💸 Compound Interest & Wealth Accumulation Suite")
+        st.markdown(
+            "<p style='color: #8A929A; font-size: 16px; margin-bottom:20px;'>"
+            "Simulate exponential portfolio growth with recurring contributions (PAC/DCA), "
+            "tax drag impact, real inflation-adjusted purchasing power, and FIRE retirement milestones."
+            "</p>",
+            unsafe_allow_html=True
+        )
+        st.divider()
 
-    mode = st.radio(
-        "Simulation Mode:",
-        ["🎯 Standard Planner", "⚖️ Scenario Comparison (A vs B)", "🔥 FIRE Retirement Milestones"],
-        horizontal=True,
-        key="ci_sim_mode"
-    )
+        mode = st.radio(
+            "Simulation Mode:",
+            ["🎯 Standard Planner", "⚖️ Scenario Comparison (A vs B)", "🔥 FIRE Retirement Milestones"],
+            horizontal=True,
+            key="ci_sim_mode"
+        )
 
-    if mode == "🎯 Standard Planner":
-        _render_standard_planner()
-    elif mode == "⚖️ Scenario Comparison (A vs B)":
-        _render_scenario_comparison()
-    else:
-        _render_fire_calculator()
+        if mode == "🎯 Standard Planner":
+            _render_standard_planner()
+        elif mode == "⚖️ Scenario Comparison (A vs B)":
+            _render_scenario_comparison()
+        else:
+            _render_fire_calculator()
 
 
 def _render_standard_planner():

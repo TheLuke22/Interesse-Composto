@@ -2335,7 +2335,7 @@ page_choice = st.sidebar.radio("Tool:", [
 # PAGE ROUTING & COMPONENT DELEGATION
 # ==========================================
 main_page_slot = st.empty()
-with main_page_slot.container():
+with main_page_slot.container(key=f"page_view_container_{page_choice}"):
     if page_choice == "🏠 Home":
         render_home_ui(
             fetch_home_data_fn=fetch_home_data,
